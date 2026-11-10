@@ -38,3 +38,8 @@ export function liveModel(): string {
 export function firecrawlApiKey(): string | null {
   return process.env.FIRECRAWL_API_KEY?.trim() || null;
 }
+
+/** Live transcription for the desktop app. The key never leaves the server. */
+export function assemblyaiApiKey(): string {
+  return required("ASSEMBLYAI_API_KEY", process.env.ASSEMBLYAI_API_KEY);
+}

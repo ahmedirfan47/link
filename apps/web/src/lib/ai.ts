@@ -170,3 +170,92 @@ export async function gradeAnswer(
   if (!grade) throw new Error("Could not grade that answer. Try again.");
   return { ...grade, score: Math.max(0, Math.min(100, grade.score)) };
 }
+
+/* ------------------------------------------------------------------ */
+/*  Live: unprepared questions and after-call summaries                */
+/* ------------------------------------------------------------------ */
+
+const FallbackSchema = z.object({
+  bullets: z.array(z.string()),
+  confident: z.boolean(),
+});
+export type FallbackCue = { bullets: string[]; confident: boolean };
+
+/** Max characters of prepared cues sent as knowledge for an unprepared question. */
+const MAX_KNOWLEDGE_CHARS = 60_000;
+
+/**
+ * Writes an emergency cue for a question the pack did not prepare for,
+ * using only facts from the user's own cues. Kept small and fast.
+ */
+export async function fallbackCue(
+  pack: PackRow,
+  knowledge: Pick<CueRow, "prompt" | "bullets">[],
+  question: string,
+): Promise<FallbackCue> {
+  let budget = MAX_KNOWLEDGE_CHARS;
+  const lines: string[] = [];
+  for (const k of knowledge) {
+    const line = `Q: ${k.prompt}\nA: ${k.bullets.join("; ")}`;
+    if (line.length > budget) break;
+    budget -= line.length;
+    lines.push(line);
+  }
+
+  const message = await anthropic().messages.parse({
+    model: liveModel(),
+    max_tokens: 400,
+    system:
+      "You help a person answer an unexpected question during a live conversation. Return at most 3 bullet fragments, each under 10 words, that they can glance at and say. Use only facts from their prepared notes; if the notes do not cover it, give a short honest approach instead (for example 'Not tracked yet; will share by Friday'). confident=true only if the notes directly answer the question.",
+    messages: [
+      {
+        role: "user",
+        content: `MEETING\n${packContext(pack)}\n\nMY PREPARED NOTES\n${lines.join("\n\n") || "(none)"}\n\nTHEY JUST ASKED\n${question}`,
+      },
+    ],
+    output_config: { format: zodOutputFormat(FallbackSchema) },
+  });
+  const out = message.parsed_output;
+  if (!out) throw new Error("No suggestion available.");
+  return {
+    bullets: out.bullets.map((b) => b.trim()).filter(Boolean).slice(0, 3).map((b) => b.slice(0, 120)),
+    confident: out.confident,
+  };
+}
+
+const SummarySchema = z.object({
+  summary: z.string(),
+  followUps: z.array(z.string()),
+  practice: z.array(z.string()),
+});
+export type SessionSummary = z.infer<typeof SummarySchema>;
+
+/** Max characters of transcript sent for the after-call summary. */
+const MAX_TRANSCRIPT_CHARS = 150_000;
+
+/** Summarises a finished call. The transcript is used once and not stored. */
+export async function summarizeSession(
+  pack: PackRow | null,
+  transcript: { speaker: "them" | "you"; text: string }[],
+  hesitations: string[],
+): Promise<SessionSummary> {
+  let text = transcript.map((t) => `${t.speaker === "you" ? "ME" : "THEM"}: ${t.text}`).join("\n");
+  if (text.length > MAX_TRANSCRIPT_CHARS) text = text.slice(-MAX_TRANSCRIPT_CHARS);
+
+  const message = await anthropic().messages.parse({
+    model: liveModel(),
+    max_tokens: 2_000,
+    system:
+      "You review a finished conversation for the person labelled ME. summary: 4-6 sentences on what happened and where it landed. followUps: concrete next actions ME promised or should take. practice: up to 5 specific moments ME struggled with (hesitations, weak or vague answers) phrased as questions to rehearse. Be direct.",
+    messages: [
+      {
+        role: "user",
+        content: `${pack ? `MEETING\n${packContext(pack)}\n\n` : ""}MOMENTS I HESITATED\n${hesitations.join("\n") || "(none)"}\n\nTRANSCRIPT\n${text}`,
+      },
+    ],
+    output_config: { format: zodOutputFormat(SummarySchema) },
+  });
+  const out = message.parsed_output;
+  if (!out) throw new Error("Could not summarise the call.");
+  return out;
+}

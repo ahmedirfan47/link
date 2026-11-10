@@ -27,5 +27,7 @@ Thumbs.db
 
 # local data (transcripts and audio never leave the device by default)
 apps/desktop/data/
+apps/desktop/out/
+apps/desktop/release/
 *.sqlite
 *.sqlite-journal

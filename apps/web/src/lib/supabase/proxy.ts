@@ -2,7 +2,8 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/env";
 
-const PUBLIC_PATHS = ["/login", "/auth"];
+// /api/desktop authenticates with a bearer token instead of cookies (see lib/supabase/bearer.ts).
+const PUBLIC_PATHS = ["/login", "/auth", "/api/desktop"];
 
 /**
  * Runs before every page: refreshes the Supabase session cookie and sends

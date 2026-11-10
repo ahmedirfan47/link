@@ -1,0 +1,17 @@
+appId: app.link.desktop
+productName: Link
+directories:
+  output: release
+  buildResources: resources
+files:
+  - out/**
+  - package.json
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: Link
