@@ -13,32 +13,15 @@ export function LoginForm({ initialError }: { initialError?: string }) {
   const error = state.error ?? (mode === "signin" ? initialError : undefined);
 
   return (
-    <form action={mode === "signin" ? signInAction : signUpAction} className="card space-y-4">
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => setMode("signin")}
-          className={mode === "signin" ? "btn" : "btn-ghost"}
-        >
-          Sign in
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("signup")}
-          className={mode === "signup" ? "btn" : "btn-ghost"}
-        >
-          Create account
-        </button>
-      </div>
-
+    <form action={mode === "signin" ? signInAction : signUpAction} className="space-y-4">
       <div>
-        <label className="label" htmlFor="email">
+        <label className="field-label" htmlFor="email">
           Email
         </label>
-        <input id="email" name="email" type="email" autoComplete="email" required className="input" />
+        <input id="email" name="email" type="email" autoComplete="email" required className="field" />
       </div>
       <div>
-        <label className="label" htmlFor="password">
+        <label className="field-label" htmlFor="password">
           Password
         </label>
         <input
@@ -48,18 +31,32 @@ export function LoginForm({ initialError }: { initialError?: string }) {
           minLength={8}
           autoComplete={mode === "signin" ? "current-password" : "new-password"}
           required
-          className="input"
+          className="field"
         />
+        {mode === "signup" && <p className="hint">At least 8 characters.</p>}
       </div>
 
-      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      {state.message && (
-        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{state.message}</p>
+      {error && (
+        <p role="alert" className="rounded-md bg-tally-soft px-2.5 py-1.5 text-sm text-tally">
+          {error}
+        </p>
       )}
+      {state.message && <p className="rounded-md bg-go-soft px-2.5 py-1.5 text-sm text-go">{state.message}</p>}
 
-      <button type="submit" disabled={pending} className="btn w-full">
-        {pending ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
+      <button type="submit" disabled={pending} className="btn btn-lg w-full">
+        {pending ? "One moment…" : mode === "signin" ? "Sign in" : "Create account"}
       </button>
+
+      <p className="text-sm text-muted">
+        {mode === "signin" ? "New to Link? " : "Already have an account? "}
+        <button
+          type="button"
+          onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+          className="font-semibold text-ink underline underline-offset-2"
+        >
+          {mode === "signin" ? "Create an account" : "Sign in"}
+        </button>
+      </p>
     </form>
   );
 }

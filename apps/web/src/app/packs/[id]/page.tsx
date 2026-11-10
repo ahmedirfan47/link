@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { ConfirmButton } from "@/components/form-status";
-import { Header } from "@/components/header";
+import { RehearseIcon, TrashIcon } from "@/components/icons";
+import { Page, PageHeader } from "@/components/page";
+import { plural } from "@/lib/format";
 import { requireUser } from "@/lib/supabase/server";
 import {
   MEETING_TYPE_LABELS,
@@ -15,17 +18,27 @@ import {
 import { deletePack } from "../actions";
 import { CueList } from "./cue-list";
 import { GapsPanel } from "./gaps-panel";
-import { GeneratePanel } from "./generate-panel";
+import { GenerateButton } from "./generate-panel";
 import { SourcesPanel } from "./sources-panel";
 
 // Pack generation runs inside a Server Action on this page and can take a few minutes.
 export const maxDuration = 300;
 
+const LANGUAGE_LABELS: Record<string, string> = { en: "English", "ur-en": "Urdu and English", "ar-en": "Arabic and English" };
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  if (!z.uuid().safeParse(id).success) return { title: "Pack" };
+  const { supabase } = await requireUser();
+  const { data } = await supabase.from("packs").select("title").eq("id", id).maybeSingle();
+  return { title: (data?.title as string | undefined) ?? "Pack" };
+}
+
 export default async function PackPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
 
-  const { supabase } = await requireUser();
+  const { supabase, userId } = await requireUser();
   const { data: packData } = await supabase.from("packs").select("*").eq("id", id).maybeSingle();
   if (!packData) notFound();
   const pack = packData as PackRow;
@@ -52,51 +65,125 @@ export default async function PackPage({ params }: { params: Promise<{ id: strin
   );
   const cues = (cuesRes.data ?? []) as CueRow[];
   const gaps = (gapsRes.data ?? []) as GapRow[];
-  const approvedIncoming = cues.filter((c) => c.approved && c.direction === "incoming" && c.kind === "question").length;
+  const approved = cues.filter((c) => c.approved).length;
+  const rehearsable = cues.filter((c) => c.approved && c.direction === "incoming" && c.kind === "question").length;
+  const firstRun = sources.length === 0 && cues.length === 0;
+
+  const meta = [
+    MEETING_TYPE_LABELS[pack.meeting_type],
+    pack.counterpart,
+    LANGUAGE_LABELS[pack.language] ?? pack.language,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
-    <>
-      <Header />
-      <main className="mx-auto max-w-5xl space-y-6 px-4 py-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <Link href="/packs" className="text-sm text-zinc-500 hover:text-zinc-900">
-              ← All packs
-            </Link>
-            <h1 className="mt-1 text-2xl font-semibold tracking-tight">{pack.title}</h1>
-            <p className="text-sm text-zinc-500">
-              {MEETING_TYPE_LABELS[pack.meeting_type]}
-              {pack.counterpart ? ` · ${pack.counterpart}` : ""}
-            </p>
-            {pack.goal && <p className="mt-1 text-sm text-zinc-700">Goal: {pack.goal}</p>}
-          </div>
-          <div className="flex gap-2">
-            {approvedIncoming > 0 ? (
-              <Link href={`/packs/${pack.id}/rehearse`} className="btn">
-                Rehearse ({approvedIncoming})
-              </Link>
+    <Page wide>
+      <PageHeader
+        back={{ href: "/packs", label: "Packs" }}
+        title={pack.title}
+        meta={
+          <>
+            <p>{meta}</p>
+            {pack.goal && <p className="mt-1 text-ink-2">Goal: {pack.goal}</p>}
+          </>
+        }
+        actions={
+          !firstRun && (
+            <>
+              {rehearsable > 0 ? (
+                <Link href={`/packs/${pack.id}/rehearse`} className="btn-line">
+                  <RehearseIcon className="h-3.5 w-3.5" />
+                  Rehearse
+                </Link>
+              ) : (
+                <span className="btn-line pointer-events-none text-faint" aria-disabled="true">
+                  <RehearseIcon className="h-3.5 w-3.5" />
+                  Rehearse
+                </span>
+              )}
+              {cues.length > 0 && (
+                <GenerateButton
+                  packId={pack.id}
+                  hasSources={sources.length > 0}
+                  hasCues
+                  generating={pack.status === "generating"}
+                />
+              )}
+            </>
+          )
+        }
+      >
+        {cues.length > 0 && (
+          <p className="mt-4 text-sm text-ink-2">
+            {approved} of {plural(cues.length, "cue")} approved for live use
+            {gaps.length > 0 ? ` · ${plural(gaps.length, "question")} only you can answer` : ""}
+          </p>
+        )}
+      </PageHeader>
+
+      {pack.status === "generating" && (
+        <p className="mb-8 rounded-md bg-marker-soft px-3 py-2 text-sm text-ink">
+          Link is reading your sources and writing cues. This takes one to three minutes; the page updates when it is
+          done.
+        </p>
+      )}
+
+      {firstRun ? (
+        <div className="max-w-[640px]">
+          <h2 className="text-lg font-bold">Add what you already have</h2>
+          <p className="mt-1 mb-5 text-base text-muted">
+            Your deck, a one-pager, notes from earlier calls, your website, or a shared ChatGPT or Claude chat where
+            you worked on this. The more specific, the better the cues.
+          </p>
+          <SourcesPanel packId={pack.id} userId={userId} sources={sources} layout="main" />
+          <form action={deletePack.bind(null, pack.id)} className="mt-12 border-t border-line pt-4">
+            <ConfirmButton message="Delete this empty pack?" pendingText="Deleting…" className="btn-danger -ml-2">
+              <TrashIcon className="h-3.5 w-3.5" />
+              Delete pack
+            </ConfirmButton>
+          </form>
+        </div>
+      ) : (
+        <div className="grid gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="min-w-0 space-y-10">
+            {gaps.length > 0 && <GapsPanel packId={pack.id} gaps={gaps} />}
+            {cues.length > 0 ? (
+              <CueList packId={pack.id} cues={cues} />
             ) : (
-              <span className="btn pointer-events-none opacity-50">Rehearse</span>
+              <div className="border-t border-line pt-6">
+                <h2 className="text-lg font-bold">Ready to write your cues</h2>
+                <p className="mt-1 text-base text-muted">
+                  Link will read {plural(sources.length, "source")} and write the questions you are likely to get,
+                  short answers, the numbers to have ready, and the points you want to make.
+                </p>
+                <div className="mt-5">
+                  <GenerateButton
+                    packId={pack.id}
+                    hasSources={sources.length > 0}
+                    hasCues={false}
+                    generating={pack.status === "generating"}
+                    large
+                  />
+                </div>
+              </div>
             )}
-            <form action={deletePack.bind(null, pack.id)}>
-              <ConfirmButton message="Delete this pack, its sources and all its cues?" pendingText="Deleting…">
+          </div>
+          <aside className="space-y-10 lg:border-l lg:border-line lg:pl-8">
+            <SourcesPanel packId={pack.id} userId={userId} sources={sources} layout="side" />
+            <form action={deletePack.bind(null, pack.id)} className="border-t border-line pt-4">
+              <ConfirmButton
+                message="Delete this pack, its sources and all its cues? Past calls stay in your history."
+                pendingText="Deleting…"
+                className="btn-danger -ml-2"
+              >
+                <TrashIcon className="h-3.5 w-3.5" />
                 Delete pack
               </ConfirmButton>
             </form>
-          </div>
+          </aside>
         </div>
-
-        {pack.status === "generating" && (
-          <p className="rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">
-            Cues are being generated. Refresh in a minute if this page does not update.
-          </p>
-        )}
-
-        <SourcesPanel packId={pack.id} sources={sources} />
-        <GeneratePanel packId={pack.id} hasSources={sources.length > 0} hasCues={cues.length > 0} />
-        <GapsPanel packId={pack.id} gaps={gaps} />
-        <CueList packId={pack.id} cues={cues} />
-      </main>
-    </>
+      )}
+    </Page>
   );
 }

@@ -1,9 +1,27 @@
 import { useEffect, useState } from "react";
-import type { PackSummary, Settings, UserInfo } from "../../../shared/types";
+import type { OverlayTextSize, PackSummary, Settings, UserInfo } from "../../../shared/types";
 import { listMicrophones } from "../live/audio";
-import { ErrorNote, Logo, Spinner } from "./ui";
+import { ErrorNote, Spinner, Wordmark } from "./ui";
 
-const SENSITIVITY_LABELS = ["Strict", "Careful", "Balanced", "Eager", "Loose"];
+const SENSITIVITY = ["Only close matches", "Fewer cards", "Balanced", "More cards", "As many as possible"];
+
+const MEETING_TYPES: Record<string, string> = {
+  investor: "Investor",
+  sales: "Sales",
+  client: "Client",
+  partner: "Partner",
+  interview: "Interview",
+  presentation: "Presentation",
+  viva: "Viva",
+  negotiation: "Negotiation",
+  other: "Other",
+};
+
+const TEXT_SIZES: { id: OverlayTextSize; label: string }[] = [
+  { id: "s", label: "Small" },
+  { id: "m", label: "Medium" },
+  { id: "l", label: "Large" },
+];
 
 export function Home({
   user,
@@ -22,7 +40,7 @@ export function Home({
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [mics, setMics] = useState<{ id: string; label: string }[]>([]);
-  const [showServer, setShowServer] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
   const [serverUrl, setServerUrl] = useState(settings.serverUrl);
 
   async function refresh() {
@@ -31,7 +49,7 @@ export function Home({
     const result = await window.link.api.listPacks();
     if (result.ok) {
       setPacks(result.data);
-      setSelected((s) => s ?? result.data[0]?.id ?? null);
+      setSelected((s) => (s && result.data.some((p) => p.id === s) ? s : (result.data[0]?.id ?? null)));
     } else {
       setError(result.error);
       setPacks([]);
@@ -40,91 +58,117 @@ export function Home({
 
   useEffect(() => {
     void refresh();
-    void listMicrophones().then(setMics).catch(() => setMics([]));
+    void listMicrophones()
+      .then(setMics)
+      .catch(() => setMics([]));
   }, []);
 
   const pack = packs?.find((p) => p.id === selected) ?? null;
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-ink-800 px-5 py-3">
-        <Logo />
-        <div className="flex items-center gap-2 text-xs text-ink-300">
-          <span className="max-w-40 truncate">{user.email}</span>
-          <button type="button" className="btn-secondary px-2 py-1 text-xs" onClick={onSignOut}>
+      <header className="flex items-center justify-between px-5 pt-4 pb-3">
+        <Wordmark />
+        <div className="flex min-w-0 items-center gap-1 text-sm text-muted">
+          <span className="truncate" title={user.email}>
+            {user.email}
+          </span>
+          <button type="button" className="btn-quiet" onClick={onSignOut}>
             Sign out
           </button>
         </div>
       </header>
 
-      <main className="flex-1 space-y-4 overflow-y-auto p-5">
-        <section className="panel space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold">Choose a pack</h2>
-            <button type="button" className="text-xs text-accent hover:underline" onClick={() => void refresh()}>
+      <main className="flex-1 space-y-7 overflow-y-auto px-5 pt-2 pb-6">
+        <section>
+          <div className="mb-2 flex items-baseline justify-between">
+            <h2 className="text-base font-bold">Pack</h2>
+            <button type="button" className="text-sm text-muted hover:text-text" onClick={() => void refresh()}>
               Refresh
             </button>
           </div>
+
           {packs === null ? (
-            <div className="flex items-center gap-2 text-sm text-ink-300">
-              <Spinner /> Loading packs…
-            </div>
+            <p className="flex items-center gap-2 py-3 text-sm text-muted">
+              <Spinner /> Loading your packs
+            </p>
           ) : packs.length === 0 && !error ? (
-            <p className="text-sm text-ink-300">No packs yet. Create one in the Link dashboard, generate cues and approve them.</p>
+            <div className="rounded-md border border-dashed border-line-strong px-4 py-4 text-sm text-text-2">
+              You have no packs yet. Create one on the{" "}
+              <a href={`${settings.serverUrl}/packs/new`} target="_blank" rel="noreferrer" className="font-semibold text-text underline underline-offset-2">
+                Link website
+              </a>
+              , add your material and approve some cues. Then press Refresh.
+            </div>
           ) : (
-            <ul className="max-h-56 space-y-1.5 overflow-y-auto pr-1">
-              {packs.map((p) => (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelected(p.id)}
-                    className={`w-full rounded-xl border px-3 py-2 text-left transition ${
-                      selected === p.id ? "border-accent bg-accent/10" : "border-ink-700 bg-ink-800 hover:border-ink-500"
-                    }`}
-                  >
-                    <p className="truncate text-sm font-medium">{p.title}</p>
-                    <p className="truncate text-xs text-ink-500">
-                      {p.meeting_type}
-                      {p.counterpart ? ` · ${p.counterpart}` : ""}
-                    </p>
-                  </button>
-                </li>
-              ))}
+            <ul className="max-h-60 overflow-y-auto rounded-md border border-line" role="radiogroup" aria-label="Pack">
+              {packs.map((p) => {
+                const active = selected === p.id;
+                return (
+                  <li key={p.id} className="border-b border-line last:border-b-0">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setSelected(p.id)}
+                      className={`grid w-full grid-cols-[14px_1fr] items-start gap-3 px-3 py-2.5 text-left transition-colors ${
+                        active ? "bg-raised" : "hover:bg-surface"
+                      }`}
+                    >
+                      <span
+                        className={`mt-1 h-3.5 w-3.5 rounded-full border-[1.5px] ${active ? "border-text bg-text shadow-[inset_0_0_0_2.5px_var(--color-raised)]" : "border-faint"}`}
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate text-base font-semibold">{p.title}</span>
+                        <span className="block truncate text-sm text-muted">
+                          {MEETING_TYPES[p.meeting_type] ?? p.meeting_type}
+                          {p.counterpart ? ` · ${p.counterpart}` : ""}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
-          {error && <ErrorNote>{error}</ErrorNote>}
+          {error && (
+            <div className="mt-2">
+              <ErrorNote>{error}</ErrorNote>
+            </div>
+          )}
         </section>
 
-        <section className="panel space-y-4">
+        <section className="space-y-5">
+          <h2 className="text-base font-bold">Call setup</h2>
+
           <div>
-            <span className="label">Where is the call?</span>
-            <div className="grid grid-cols-2 gap-2">
+            <span className="field-label">Where is the call</span>
+            <div className="seg">
               {(
                 [
-                  { id: "laptop", title: "On this laptop", hint: "Zoom, Meet, Teams, WhatsApp, Phone Link" },
-                  { id: "room", title: "Phone on speaker", hint: "One mic hears both sides" },
+                  { id: "laptop", title: "On this computer", hint: "Zoom, Meet, Teams, WhatsApp, Phone Link" },
+                  { id: "room", title: "Phone on speaker", hint: "The mic hears both of you" },
                 ] as const
               ).map((m) => (
                 <button
                   key={m.id}
                   type="button"
+                  data-active={settings.mode === m.id}
                   onClick={() => onSettings({ mode: m.id })}
-                  className={`rounded-xl border px-3 py-2 text-left transition ${
-                    settings.mode === m.id ? "border-accent bg-accent/10" : "border-ink-700 bg-ink-800 hover:border-ink-500"
-                  }`}
+                  className="seg-item"
                 >
-                  <p className="text-sm font-medium">{m.title}</p>
-                  <p className="text-[11px] leading-snug text-ink-500">{m.hint}</p>
+                  <span className="block font-semibold">{m.title}</span>
+                  <span className="block text-xs text-muted">{m.hint}</span>
                 </button>
               ))}
             </div>
             {settings.mode === "laptop" && (
-              <p className="mt-2 text-[11px] text-ink-500">Use headphones so your mic does not pick up the other side.</p>
+              <p className="mt-1.5 text-xs text-muted">Wear headphones so your mic does not pick up the other side.</p>
             )}
           </div>
 
           <div>
-            <label className="label" htmlFor="mic">
+            <label className="field-label" htmlFor="mic">
               Microphone
             </label>
             <select
@@ -143,62 +187,89 @@ export function Home({
           </div>
 
           <div>
-            <div className="mb-1.5 flex items-center justify-between">
-              <span className="label mb-0">How often cards appear</span>
-              <span className="text-xs text-ink-300">{SENSITIVITY_LABELS[settings.sensitivity - 1]}</span>
+            <div className="mb-1 flex items-baseline justify-between">
+              <label className="field-label mb-0" htmlFor="sensitivity">
+                How often cards appear
+              </label>
+              <span className="text-sm text-muted">{SENSITIVITY[settings.sensitivity - 1]}</span>
             </div>
             <input
+              id="sensitivity"
               type="range"
               min={1}
               max={5}
               step={1}
               value={settings.sensitivity}
               onChange={(e) => onSettings({ sensitivity: Number(e.target.value) })}
-              className="w-full accent-[#7c9cff]"
+              className="w-full accent-[#ededea]"
             />
           </div>
 
-          <label className="flex items-start gap-3 text-sm">
+          <div>
+            <span className="field-label">Answer text size</span>
+            <div className="seg">
+              {TEXT_SIZES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  data-active={settings.overlayTextSize === t.id}
+                  onClick={() => onSettings({ overlayTextSize: t.id })}
+                  className="seg-item text-center"
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <label className="flex items-start gap-3 text-base">
             <input
               type="checkbox"
-              className="mt-0.5 accent-[#7c9cff]"
+              className="mt-1 h-4 w-4 accent-[#ededea]"
               checked={settings.summarize}
               onChange={(e) => onSettings({ summarize: e.target.checked })}
             />
             <span>
               Summary after the call
-              <span className="block text-xs text-ink-500">The transcript is sent once to write it, then discarded.</span>
+              <span className="block text-sm text-muted">The transcript is sent once to write it, then thrown away.</span>
             </span>
           </label>
         </section>
 
-        <section className="space-y-2 text-xs text-ink-500">
-          <button type="button" className="hover:text-ink-300" onClick={() => setShowServer((v) => !v)}>
-            Server: {settings.serverUrl} {showServer ? "▴" : "▾"}
+        <section className="text-sm text-muted">
+          <button type="button" className="hover:text-text" onClick={() => setAdvanced((v) => !v)} aria-expanded={advanced}>
+            {advanced ? "Hide" : "Show"} server settings
           </button>
-          {showServer && (
-            <div className="flex gap-2">
-              <input className="field" value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} />
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => {
-                  onSettings({ serverUrl });
-                  setTimeout(() => void refresh(), 100);
-                }}
-              >
-                Save
-              </button>
+          {advanced && (
+            <div className="mt-2">
+              <label className="field-label" htmlFor="server">
+                Link server
+              </label>
+              <div className="flex gap-2">
+                <input id="server" className="field" value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} />
+                <button
+                  type="button"
+                  className="btn-line h-auto"
+                  onClick={() => {
+                    onSettings({ serverUrl });
+                    setTimeout(() => void refresh(), 100);
+                  }}
+                >
+                  Save
+                </button>
+              </div>
             </div>
           )}
-          <p>Ask everyone on the call if they are comfortable with you using an AI note assistant.</p>
         </section>
       </main>
 
-      <footer className="border-t border-ink-800 p-5">
-        <button type="button" disabled={!pack} className="btn-primary w-full py-3 text-base" onClick={() => pack && onStart(pack)}>
-          {pack ? `Start live · ${pack.title}` : "Choose a pack to start"}
+      <footer className="border-t border-line px-5 pt-4 pb-5">
+        <button type="button" disabled={!pack} className="btn h-11 w-full" onClick={() => pack && onStart(pack)}>
+          {pack ? "Start call" : "Choose a pack to start"}
         </button>
+        <p className="mt-2 text-center text-xs text-muted">
+          Tell the people on the call you are using an AI note assistant.
+        </p>
       </footer>
     </div>
   );

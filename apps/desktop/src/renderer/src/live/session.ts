@@ -37,6 +37,8 @@ export interface LiveSnapshot {
   stats: { cues: number; unprepared: number; hesitations: number };
   matcher: string;
   result: SessionEndResult | null;
+  /** Server id of this call, for the "open in dashboard" link. */
+  sessionId: string | null;
 }
 
 const MAX_CARDS = 3;
@@ -63,6 +65,7 @@ export function emptySnapshot(): LiveSnapshot {
     stats: { cues: 0, unprepared: 0, hesitations: 0 },
     matcher: "",
     result: null,
+    sessionId: null,
   };
 }
 
@@ -126,6 +129,7 @@ export class LiveSession {
       cards: this.snap.cards,
       checklist: this.snap.checklist,
       clickThrough: false,
+      textSize: this.settings?.overlayTextSize ?? "m",
     });
   }
 
@@ -168,6 +172,7 @@ export class LiveSession {
       const sessionResult = await window.link.api.startSession(packId, packResult.data.pack.title);
       if (!sessionResult.ok) throw new Error(sessionResult.error);
       this.sessionId = sessionResult.data.id;
+      this.set({ sessionId: sessionResult.data.id });
 
       this.set({ message: "Opening the microphone…" });
       this.streams.mic = await getMicrophone(settings.micDeviceId);
@@ -300,7 +305,7 @@ export class LiveSession {
             id: cue.id,
             kind: cardKind(cue),
             title: cue.prompt,
-            bullets: cue.bullets.length > 0 ? cue.bullets : ["No answer cue yet — add one in the dashboard"],
+            bullets: cue.bullets.length > 0 ? cue.bullets : ["No answer yet. Add one on the website."],
             meta: event.reason === "keyword" ? "Keyword" : `${Math.round(event.score * 100)}% match`,
           });
           this.set({ stats: { ...this.snap.stats, cues: this.snap.stats.cues + 1 } });

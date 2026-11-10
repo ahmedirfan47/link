@@ -2,46 +2,52 @@
 
 import { useActionState } from "react";
 import { SubmitButton, StateMessage } from "@/components/form-status";
+import { Section } from "@/components/page";
 import type { ActionState, GapRow } from "@/lib/rows";
 import { answerGap, skipGap } from "./actions";
 
-function GapItem({ packId, gap }: { packId: string; gap: GapRow }) {
+function GapItem({ packId, gap, index }: { packId: string; gap: GapRow; index: number }) {
   const [state, action] = useActionState<ActionState, FormData>(answerGap.bind(null, packId, gap.id), {});
 
   return (
-    <li className="space-y-2 rounded-lg border border-zinc-200 p-3">
-      <p className="text-sm font-medium">{gap.question}</p>
-      <form action={action} className="space-y-2">
-        <textarea name="answer" rows={2} required placeholder="Your answer, in your own words" className="input" />
-        <StateMessage state={state} />
-        <div className="flex gap-2">
-          <SubmitButton pendingText="Saving…">Save as cue</SubmitButton>
-        </div>
-      </form>
-      <form action={skipGap.bind(null, packId, gap.id)}>
-        <SubmitButton className="btn-ghost" pendingText="…">
-          Skip
-        </SubmitButton>
-      </form>
+    <li className="grid grid-cols-[24px_1fr] gap-x-2 py-4">
+      <span className="pt-0.5 font-mono text-xs text-faint">{String(index + 1).padStart(2, "0")}</span>
+      <div className="space-y-2">
+        <p className="font-semibold">{gap.question}</p>
+        <form action={action} className="space-y-2">
+          <textarea
+            name="answer"
+            rows={2}
+            required
+            placeholder="Answer the way you would say it. Link shortens it into a cue."
+            className="field"
+          />
+          <StateMessage state={state} />
+          <div className="flex items-center gap-1">
+            <SubmitButton className="btn-line" pendingText="Saving…">
+              Save answer
+            </SubmitButton>
+            <button formAction={skipGap.bind(null, packId, gap.id)} formNoValidate className="btn-quiet">
+              Skip
+            </button>
+          </div>
+        </form>
+      </div>
     </li>
   );
 }
 
 export function GapsPanel({ packId, gaps }: { packId: string; gaps: GapRow[] }) {
-  if (gaps.length === 0) return null;
   return (
-    <section className="card space-y-3">
-      <div>
-        <h2 className="text-lg font-semibold">3. Fill the gaps</h2>
-        <p className="text-sm text-zinc-500">
-          Your sources did not answer these, but they are likely to come up. Each answer becomes a cue.
-        </p>
-      </div>
-      <ul className="space-y-3">
-        {gaps.map((g) => (
-          <GapItem key={g.id} packId={packId} gap={g} />
+    <Section
+      title="Questions only you can answer"
+      description="Your sources do not cover these, but they are likely to come up. Each answer becomes an approved cue."
+    >
+      <ol className="divide-y divide-line">
+        {gaps.map((g, i) => (
+          <GapItem key={g.id} packId={packId} gap={g} index={i} />
         ))}
-      </ul>
-    </section>
+      </ol>
+    </Section>
   );
 }

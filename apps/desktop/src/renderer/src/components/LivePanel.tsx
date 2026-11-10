@@ -1,10 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { HOTKEYS } from "../../../shared/config";
 import type { LiveSnapshot } from "../live/session";
-import { ErrorNote, LevelMeter, Logo, Spinner, formatElapsed } from "./ui";
+import { CheckIcon, ErrorNote, LevelMeter, Spinner, Wordmark, formatElapsed } from "./ui";
 
-function hotkey(label: string): string {
-  return label.replace("CommandOrControl", "Ctrl");
+function keys(accelerator: string): string[] {
+  return accelerator.replace("CommandOrControl", "Ctrl").split("+");
+}
+
+function Hotkey({ accelerator, label }: { accelerator: string; label: string }) {
+  return (
+    <li className="flex items-center justify-between gap-3">
+      <span>{label}</span>
+      <span className="flex gap-1">
+        {keys(accelerator).map((k) => (
+          <kbd key={k} className="kbd">
+            {k}
+          </kbd>
+        ))}
+      </span>
+    </li>
+  );
 }
 
 export function LivePanel({
@@ -19,112 +34,117 @@ export function LivePanel({
   onBack: () => void;
 }) {
   const [now, setNow] = useState(Date.now());
+  const transcriptEnd = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
 
+  useEffect(() => {
+    transcriptEnd.current?.scrollIntoView({ block: "end" });
+  }, [snap.transcript.length]);
+
   const live = snap.phase === "live";
+  const running = live || snap.phase === "ending";
+  const other = mode === "laptop" ? "Them" : "Room";
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-ink-800 px-5 py-3">
-        <Logo />
-        {live && (
-          <span className="flex items-center gap-2 rounded-full bg-red-500/15 px-3 py-1 text-xs font-medium text-red-300">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" />
-            Live {snap.startedAt ? formatElapsed(now - snap.startedAt) : ""}
-          </span>
-        )}
+      <header className="px-5 pt-4 pb-3">
+        <div className="flex items-center justify-between">
+          <Wordmark live={live} />
+          {running && snap.startedAt && (
+            <span className="font-mono text-xl text-text tabular-nums">{formatElapsed(now - snap.startedAt)}</span>
+          )}
+        </div>
+        <p className="mt-2 truncate text-sm text-muted">{snap.packTitle || "Loading pack"}</p>
       </header>
 
-      <main className="flex-1 space-y-4 overflow-y-auto p-5">
-        <div>
-          <p className="text-xs text-ink-500">Pack</p>
-          <h1 className="truncate text-lg font-semibold">{snap.packTitle || "…"}</h1>
-        </div>
-
+      <main className="flex-1 space-y-6 overflow-y-auto px-5 pb-6">
         {snap.phase === "preparing" && (
-          <div className="panel flex items-center gap-3 text-sm text-ink-300">
+          <p className="flex items-center gap-2.5 pt-4 text-base text-text-2">
             <Spinner /> {snap.message}
-          </div>
+          </p>
         )}
 
         {snap.phase === "error" && (
-          <div className="space-y-3">
+          <div className="space-y-3 pt-4">
             <ErrorNote>{snap.message}</ErrorNote>
-            <button type="button" className="btn-secondary" onClick={onBack}>
+            <button type="button" className="btn-line" onClick={onBack}>
               Back
             </button>
           </div>
         )}
 
-        {(live || snap.phase === "ending") && (
+        {running && (
           <>
-            <section className="panel space-y-2.5">
+            <section className="space-y-2 border-t border-line pt-4">
               {mode === "laptop" && <LevelMeter label="You" level={snap.levels.you} active={live} />}
-              <LevelMeter label={mode === "laptop" ? "Them" : "Room"} level={snap.levels.them} active={live} />
-              <p className="pt-1 text-[11px] text-ink-500">
-                {snap.message} · {snap.matcher}
+              <LevelMeter label={other} level={snap.levels.them} active={live} />
+              <p className="pt-1 text-xs text-muted">
+                {snap.message}
+                {snap.matcher ? ` · ${snap.matcher}` : ""}
               </p>
             </section>
 
-            <section className="grid grid-cols-3 gap-2 text-center">
-              {[
-                { label: "Cues shown", value: snap.stats.cues },
-                { label: "Unprepared", value: snap.stats.unprepared },
-                { label: "Word finder", value: snap.stats.hesitations },
-              ].map((s) => (
-                <div key={s.label} className="rounded-xl border border-ink-700 bg-ink-900 py-2">
-                  <p className="text-lg font-semibold">{s.value}</p>
-                  <p className="text-[10px] uppercase tracking-wider text-ink-500">{s.label}</p>
-                </div>
-              ))}
-            </section>
+            <p className="font-mono text-xs text-text-2">
+              {snap.stats.cues} cues shown · {snap.stats.unprepared} not prepared · {snap.stats.hesitations} word finder
+            </p>
 
-            <section className="panel">
-              <p className="label">Live transcript</p>
+            <section>
+              <h2 className="mb-2 text-sm font-semibold text-muted">Transcript</h2>
               {snap.transcript.length === 0 ? (
-                <p className="text-sm text-ink-500">Waiting for speech…</p>
+                <p className="text-sm text-faint">Nothing heard yet. Lines appear here as people speak.</p>
               ) : (
-                <ul className="space-y-1.5 text-sm">
+                <ul className="space-y-2 text-base">
                   {snap.transcript.map((line, i) => (
-                    <li key={i} className={line.final ? "" : "opacity-60"}>
-                      <span className={`mr-2 text-[10px] font-bold uppercase ${line.speaker === "you" ? "text-accent" : "text-emerald-400"}`}>
-                        {line.speaker === "you" ? "You" : mode === "laptop" ? "Them" : "Room"}
+                    <li key={i} className={`grid grid-cols-[42px_1fr] gap-2 ${line.final ? "" : "opacity-55"}`}>
+                      <span className={`pt-0.5 text-xs font-semibold ${line.speaker === "you" ? "text-text-2" : "text-go"}`}>
+                        {line.speaker === "you" ? "You" : other}
                       </span>
-                      {line.text}
+                      <span className="text-text-2">{line.text}</span>
                     </li>
                   ))}
                 </ul>
               )}
+              <div ref={transcriptEnd} />
             </section>
 
             {snap.checklist.length > 0 && (
-              <section className="panel">
-                <p className="label">Your checklist</p>
-                <ul className="space-y-1 text-sm">
+              <section>
+                <h2 className="mb-2 text-sm font-semibold text-muted">Before you hang up</h2>
+                <ul className="space-y-1.5 text-base">
                   {snap.checklist.map((c) => (
-                    <li key={c.id} className={c.done ? "text-ink-500 line-through" : ""}>
-                      {c.done ? "✓" : "○"} {c.text}
+                    <li key={c.id} className={`flex gap-2 ${c.done ? "text-faint line-through" : "text-text-2"}`}>
+                      <span
+                        className={`mt-1 grid h-3.5 w-3.5 shrink-0 place-items-center rounded-sm border ${
+                          c.done ? "border-go bg-go text-bg" : "border-faint"
+                        }`}
+                      >
+                        {c.done && <CheckIcon className="h-2.5 w-2.5" />}
+                      </span>
+                      {c.text}
                     </li>
                   ))}
                 </ul>
               </section>
             )}
 
-            <section className="text-[11px] leading-relaxed text-ink-500">
-              <p>{hotkey(HOTKEYS.toggleOverlay)} show / hide overlay</p>
-              <p>{hotkey(HOTKEYS.clearCards)} clear cards</p>
-              <p>{hotkey(HOTKEYS.toggleClickThrough)} let clicks pass through the overlay</p>
+            <section className="border-t border-line pt-4">
+              <ul className="space-y-1.5 text-sm text-muted">
+                <Hotkey accelerator={HOTKEYS.toggleOverlay} label="Show or hide the overlay" />
+                <Hotkey accelerator={HOTKEYS.clearCards} label="Clear cards" />
+                <Hotkey accelerator={HOTKEYS.toggleClickThrough} label="Let clicks pass through" />
+              </ul>
             </section>
           </>
         )}
       </main>
 
-      {(live || snap.phase === "ending") && (
-        <footer className="border-t border-ink-800 p-5">
-          <button type="button" className="btn-stop w-full py-3 text-base" disabled={!live} onClick={onStop}>
+      {running && (
+        <footer className="border-t border-line px-5 pt-4 pb-5">
+          <button type="button" className="btn-end w-full" disabled={!live} onClick={onStop}>
             {snap.phase === "ending" ? (
               <>
                 <Spinner /> {snap.message}

@@ -1,10 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import { Header } from "@/components/header";
+import { Page, PageHeader } from "@/components/page";
 import { requireUser } from "@/lib/supabase/server";
 import type { PackRow } from "@/lib/rows";
 import { RehearseClient, type RehearsalCue } from "./rehearse-client";
+
+export const metadata: Metadata = { title: "Rehearse" };
 
 export default async function RehearsePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -25,27 +28,23 @@ export default async function RehearsePage({ params }: { params: Promise<{ id: s
   const cues = (data ?? []) as RehearsalCue[];
 
   return (
-    <>
-      <Header />
-      <main className="mx-auto max-w-3xl space-y-6 px-4 py-8">
-        <div>
-          <Link href={`/packs/${pack.id}`} className="text-sm text-zinc-500 hover:text-zinc-900">
-            ← {pack.title}
-          </Link>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">Rehearse</h1>
-          <p className="text-sm text-zinc-500">
-            Answer each question as you would on the call. Link compares your answer with your cue and tells
-            you what you missed.
-          </p>
-        </div>
-        {cues.length === 0 ? (
-          <p className="card text-sm text-zinc-600">
-            No approved questions yet. Approve some cues on the pack page first.
-          </p>
-        ) : (
-          <RehearseClient packId={pack.id} language={pack.language} cues={cues} />
-        )}
-      </main>
-    </>
+    <Page>
+      <PageHeader
+        back={{ href: `/packs/${pack.id}`, label: pack.title }}
+        title="Rehearse"
+        meta="Answer each question out loud, the way you would on the call. Link checks your answer against your cue."
+      />
+      {cues.length === 0 ? (
+        <p className="text-base text-muted">
+          There are no approved questions in this pack yet.{" "}
+          <Link href={`/packs/${pack.id}`} className="font-semibold text-ink underline underline-offset-2">
+            Approve some cues
+          </Link>{" "}
+          first.
+        </p>
+      ) : (
+        <RehearseClient packId={pack.id} language={pack.language} cues={cues} />
+      )}
+    </Page>
   );
 }

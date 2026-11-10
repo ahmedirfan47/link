@@ -54,9 +54,9 @@ export function App() {
     );
   }
 
-  if (!user) return <SignIn onSignedIn={setUser} />;
+  if (!user) return <SignIn onSignedIn={setUser} serverUrl={settings.serverUrl} />;
 
-  if (snap.phase === "ended") return <SummaryPanel snap={snap} onDone={backHome} />;
+  if (snap.phase === "ended") return <SummaryPanel snap={snap} serverUrl={settings.serverUrl} onDone={backHome} />;
 
   if (snap.phase !== "idle") {
     return (

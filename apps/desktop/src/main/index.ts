@@ -34,7 +34,7 @@ function createControlWindow(): void {
     minWidth: 420,
     minHeight: 600,
     title: "Link",
-    backgroundColor: "#0b0b0f",
+    backgroundColor: "#141413",
     autoHideMenuBar: true,
     webPreferences: { preload, contextIsolation: true, sandbox: true, nodeIntegration: false },
   });

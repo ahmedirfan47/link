@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { CheckIcon, CrossIcon, MicIcon, StopIcon } from "@/components/icons";
 import type { Grade } from "@/lib/ai";
 import { gradeRehearsal } from "./actions";
 
@@ -147,12 +148,22 @@ export function RehearseClient({
 
   if (finished) {
     return (
-      <div className="card space-y-3 text-center">
-        <h2 className="text-xl font-semibold">Round complete</h2>
-        <p className="text-zinc-600">
-          {scores.length} answers graded{average !== null ? ` · average score ${average}` : ""}.
+      <div className="border-t border-line pt-8">
+        <p className="font-mono text-sm text-muted">Round complete</p>
+        <p className="mt-2 text-3xl font-bold tracking-tight">
+          {average !== null ? (
+            <>
+              {average}
+              <span className="text-lg font-semibold text-muted"> / 100 average</span>
+            </>
+          ) : (
+            "No answers graded"
+          )}
         </p>
-        <button type="button" className="btn" onClick={restart}>
+        <p className="mt-1 text-base text-muted">
+          {scores.length} of {deck.length} questions answered and checked.
+        </p>
+        <button type="button" className="btn btn-lg mt-6" onClick={restart}>
           Go again
         </button>
       </div>
@@ -160,98 +171,113 @@ export function RehearseClient({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between text-sm text-zinc-500">
-        <span>
-          Question {index + 1} of {deck.length}
+    <div>
+      <div className="mb-6 flex items-center gap-4">
+        <div className="h-1 flex-1 overflow-hidden rounded-full bg-sunken">
+          <div className="h-full bg-ink transition-[width]" style={{ width: `${(index / deck.length) * 100}%` }} />
+        </div>
+        <span className="font-mono text-xs text-muted">
+          {index + 1} / {deck.length}
         </span>
-        {average !== null && <span>Average score {average}</span>}
+        {average !== null && <span className="font-mono text-xs text-muted">avg {average}</span>}
       </div>
 
-      <div className="card space-y-4">
-        <p className="text-xl font-semibold leading-snug">{cue?.prompt}</p>
+      <p className="mb-6 text-2xl leading-tight font-bold tracking-tight text-balance">{cue?.prompt}</p>
 
-        <textarea
-          value={answer}
-          onChange={(e) => setAnswer(e.target.value)}
-          rows={5}
-          placeholder={speechSupported ? "Answer out loud with the mic, or type…" : "Type your answer…"}
-          className="input"
-          disabled={pending}
-        />
+      <textarea
+        value={answer}
+        onChange={(e) => setAnswer(e.target.value)}
+        rows={5}
+        placeholder={speechSupported ? "Press Answer out loud and speak, or type here." : "Type your answer."}
+        className="field text-lg"
+        disabled={pending}
+      />
 
-        <div className="flex flex-wrap gap-2">
-          {speechSupported &&
-            (listening ? (
-              <button type="button" className="btn-danger" onClick={stopListening}>
-                ■ Stop mic
-              </button>
-            ) : (
-              <button type="button" className="btn-ghost" onClick={startListening} disabled={pending}>
-                🎙 Answer out loud
-              </button>
-            ))}
-          <button type="button" className="btn" onClick={submit} disabled={pending || answer.trim().length < 3}>
-            {pending ? "Grading…" : "Check my answer"}
-          </button>
-          {!revealed && (
-            <button type="button" className="btn-ghost" onClick={() => setRevealed(true)}>
-              Show cue
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {speechSupported &&
+          (listening ? (
+            <button type="button" className="btn bg-tally hover:bg-tally" onClick={stopListening}>
+              <StopIcon className="h-3.5 w-3.5" />
+              Stop
             </button>
-          )}
-          <button type="button" className="btn-ghost" onClick={next}>
-            {grade || revealed ? "Next question →" : "Skip"}
+          ) : (
+            <button type="button" className="btn-line" onClick={startListening} disabled={pending}>
+              <MicIcon className="h-3.5 w-3.5" />
+              Answer out loud
+            </button>
+          ))}
+        <button type="button" className="btn" onClick={submit} disabled={pending || answer.trim().length < 3}>
+          {pending ? "Checking…" : "Check my answer"}
+        </button>
+        <span className="flex-1" />
+        {!revealed && (
+          <button type="button" className="btn-quiet" onClick={() => setRevealed(true)}>
+            Show my cue
           </button>
-        </div>
-
-        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        )}
+        <button type="button" className="btn-quiet" onClick={next}>
+          {grade || revealed ? "Next question" : "Skip"}
+        </button>
       </div>
 
-      {revealed && cue && (
-        <div className="card space-y-2">
-          <h3 className="label">Your cue</h3>
-          {cue.bullets.length > 0 ? (
-            <ul className="list-disc pl-5">
-              {cue.bullets.map((b, i) => (
-                <li key={i}>{b}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-zinc-500">This cue has no answer bullets yet.</p>
-          )}
-        </div>
+      {listening && <p className="mt-2 text-sm text-tally">Listening…</p>}
+      {error && (
+        <p role="alert" className="mt-3 rounded-md bg-tally-soft px-2.5 py-1.5 text-sm text-tally">
+          {error}
+        </p>
       )}
 
-      {grade && (
-        <div className="card space-y-3">
-          <div className="flex items-center gap-3">
-            <span
-              className={`flex h-12 w-12 items-center justify-center rounded-full text-lg font-semibold text-white ${
-                grade.score >= 75 ? "bg-emerald-600" : grade.score >= 50 ? "bg-amber-500" : "bg-red-600"
-              }`}
-            >
-              {grade.score}
-            </span>
-            <p className="text-sm text-zinc-700">{grade.tip}</p>
-          </div>
-          {grade.covered.length > 0 && (
+      {(revealed || grade) && (
+        <div className="mt-10 grid gap-10 border-t border-line pt-6 sm:grid-cols-2">
+          {revealed && cue && (
             <div>
-              <h3 className="label">You covered</h3>
-              <ul className="list-disc pl-5 text-sm">
-                {grade.covered.map((c, i) => (
-                  <li key={i}>{c}</li>
-                ))}
-              </ul>
+              <h3 className="mb-2 text-sm font-semibold text-muted">Your cue</h3>
+              {cue.bullets.length > 0 ? (
+                <ul className="space-y-1.5">
+                  {cue.bullets.map((b, i) => (
+                    <li key={i} className="flex gap-2.5 text-base font-semibold">
+                      <span className="mt-[0.6em] h-1 w-1 shrink-0 bg-ink-2" aria-hidden />
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-faint">This cue has no answer yet.</p>
+              )}
             </div>
           )}
-          {grade.missed.length > 0 && (
+
+          {grade && (
             <div>
-              <h3 className="label">You missed</h3>
-              <ul className="list-disc pl-5 text-sm text-red-700">
-                {grade.missed.map((m, i) => (
-                  <li key={i}>{m}</li>
-                ))}
-              </ul>
+              <h3 className="mb-2 text-sm font-semibold text-muted">How you did</h3>
+              <p className="text-3xl font-bold tracking-tight">
+                {grade.score}
+                <span className="text-base font-semibold text-muted"> / 100</span>
+              </p>
+              <p className="mt-2 text-base text-ink-2">{grade.tip}</p>
+              {grade.covered.length > 0 && (
+                <ul className="mt-4 space-y-1">
+                  {grade.covered.map((c, i) => (
+                    <li key={i} className="flex gap-2 text-sm">
+                      <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-go" />
+                      {c}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {grade.missed.length > 0 && (
+                <ul className="mt-2 space-y-1">
+                  {grade.missed.map((m, i) => (
+                    <li key={i} className="flex gap-2 text-sm">
+                      <CrossIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-tally" />
+                      <span>
+                        <span className="sr-only">Missed: </span>
+                        {m}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </div>

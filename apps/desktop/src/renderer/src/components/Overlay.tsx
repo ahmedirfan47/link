@@ -1,48 +1,68 @@
 import { useEffect, useState } from "react";
-import type { CardKind, OverlayCard, OverlayState } from "../../../shared/types";
+import type { CardKind, OverlayCard, OverlayState, OverlayTextSize } from "../../../shared/types";
+import { CrossIcon, ListIcon, MinusIcon, PassThroughIcon } from "./ui";
 
-const KIND_STYLE: Record<CardKind, { label: string; ring: string; tag: string }> = {
-  answer: { label: "Answer", ring: "border-accent/40", tag: "bg-accent/20 text-accent" },
-  topic: { label: "Topic", ring: "border-sky-400/30", tag: "bg-sky-400/15 text-sky-300" },
-  number: { label: "Number", ring: "border-emerald-400/40", tag: "bg-emerald-400/15 text-emerald-300" },
-  recall: { label: "You were saying", ring: "border-amber-400/40", tag: "bg-amber-400/15 text-amber-300" },
-  unprepared: { label: "Unprepared", ring: "border-fuchsia-400/40", tag: "bg-fuchsia-400/15 text-fuchsia-300" },
+/*
+ * Built like a prompter, not a chat window: one answer at a time, large
+ * sentence-case text, short lines, high contrast. Older cards shrink to a
+ * single line so the eye never has to choose between two answers.
+ */
+
+const KIND_LABEL: Record<CardKind, string> = {
+  answer: "Answer",
+  topic: "Bring up",
+  number: "Number",
+  recall: "You were saying",
+  unprepared: "Not in your pack · drafted now",
 };
 
-function Card({ card, primary, onDismiss }: { card: OverlayCard; primary: boolean; onDismiss: () => void }) {
-  const style = KIND_STYLE[card.kind];
+const SIZE: Record<OverlayTextSize, { bullets: string; number: string; prompt: string }> = {
+  s: { bullets: "text-[17px]", number: "text-[22px]", prompt: "text-xs" },
+  m: { bullets: "text-[21px]", number: "text-[27px]", prompt: "text-sm" },
+  l: { bullets: "text-[26px]", number: "text-[33px]", prompt: "text-base" },
+};
+
+function PrimaryCard({ card, size, onDismiss }: { card: OverlayCard; size: OverlayTextSize; onDismiss: () => void }) {
+  const s = SIZE[size];
+  const drafted = card.kind === "unprepared";
   return (
     <article
-      className={`card-in no-drag rounded-2xl border ${style.ring} bg-ink-950/90 p-4 shadow-2xl backdrop-blur ${
-        primary ? "" : "opacity-70"
+      className={`card-in no-drag rounded-xl bg-[#121211]/95 px-5 pt-3.5 pb-4 shadow-[0_12px_40px_rgba(0,0,0,0.45)] ${
+        drafted ? "border border-dashed border-marker/60" : "border border-line"
       }`}
     >
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${style.tag}`}>
-          {style.label}
-        </span>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-ink-500">{card.meta}</span>
-          <button type="button" onClick={onDismiss} className="text-ink-500 hover:text-ink-100" aria-label="Dismiss">
-            ✕
-          </button>
-        </div>
+      <div className="mb-2 flex items-center gap-2 text-xs">
+        <span className={drafted ? "font-semibold text-marker" : "text-muted"}>{KIND_LABEL[card.kind]}</span>
+        <span className="ml-auto font-mono text-2xs text-faint">{card.meta}</span>
+        <button type="button" onClick={onDismiss} className="-mr-1.5 rounded-sm p-1 text-faint hover:text-text" aria-label="Dismiss card">
+          <CrossIcon className="h-3.5 w-3.5" />
+        </button>
       </div>
-      <p className={`mb-2 leading-snug text-ink-300 ${primary ? "text-sm" : "text-xs"}`}>{card.title}</p>
-      <ul className="space-y-1.5">
+      {card.title && <p className={`mb-2.5 leading-snug text-[#a9a9a4] ${s.prompt}`}>{card.title}</p>}
+      <ul className="max-w-[34ch] space-y-1.5">
         {card.bullets.map((b, i) => (
           <li
             key={i}
-            className={`flex gap-2 font-semibold leading-snug text-white ${
-              card.kind === "number" && primary ? "text-2xl" : primary ? "text-lg" : "text-sm"
+            className={`leading-[1.25] font-semibold text-[#f6f6f3] ${
+              card.kind === "number" ? `${s.number} text-marker` : s.bullets
             }`}
           >
-            <span className="mt-[0.45em] h-1.5 w-1.5 shrink-0 rounded-full bg-current opacity-50" />
-            <span>{b}</span>
+            {b}
           </li>
         ))}
       </ul>
     </article>
+  );
+}
+
+function StubCard({ card, onDismiss }: { card: OverlayCard; onDismiss: () => void }) {
+  return (
+    <div className="no-drag flex items-center gap-2 rounded-lg border border-line bg-[#121211]/85 px-3 py-1.5 text-sm text-muted">
+      <span className="min-w-0 flex-1 truncate">{card.title || card.bullets[0]}</span>
+      <button type="button" onClick={onDismiss} className="rounded-sm p-0.5 text-faint hover:text-text" aria-label="Dismiss card">
+        <CrossIcon className="h-3 w-3" />
+      </button>
+    </div>
   );
 }
 
@@ -53,75 +73,92 @@ export function Overlay() {
     cards: [],
     checklist: [],
     clickThrough: false,
+    textSize: "m",
   });
   const [showChecklist, setShowChecklist] = useState(false);
 
   useEffect(() => window.link.overlay.onState(setState), []);
 
   const remaining = state.checklist.filter((c) => !c.done);
-  const statusColor =
-    state.status === "listening" ? "bg-emerald-400" : state.status === "starting" ? "bg-amber-400" : state.status === "error" ? "bg-red-400" : "bg-ink-500";
+  const dot =
+    state.status === "listening"
+      ? "bg-go"
+      : state.status === "starting"
+        ? "bg-marker"
+        : state.status === "error"
+          ? "bg-tally"
+          : "bg-faint";
+  const [primary, ...older] = state.cards;
 
   return (
     <div className="flex h-full flex-col gap-2 p-2">
-      <header className="drag flex items-center justify-between rounded-xl border border-ink-700 bg-ink-950/85 px-3 py-1.5 backdrop-blur">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className={`h-2 w-2 shrink-0 rounded-full ${statusColor} ${state.status === "listening" ? "animate-pulse" : ""}`} />
-          <span className="truncate text-xs font-medium text-ink-300">{state.packTitle || "Link"}</span>
-        </div>
-        <div className="no-drag flex items-center gap-1">
+      <header className="drag flex h-8 items-center gap-2 rounded-lg border border-line bg-[#121211]/90 pr-1 pl-3">
+        <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
+        <span className="min-w-0 flex-1 truncate text-xs text-text-2">{state.packTitle || "Link"}</span>
+        <div className="no-drag flex items-center">
           {state.checklist.length > 0 && (
             <button
               type="button"
               onClick={() => setShowChecklist((v) => !v)}
-              className="rounded-lg px-2 py-0.5 text-[11px] text-ink-300 hover:bg-ink-800"
+              className={`flex h-6 items-center gap-1 rounded-sm px-1.5 text-xs hover:bg-raised ${showChecklist ? "text-text" : "text-muted"}`}
+              title="Things to cover before you hang up"
             >
-              ☑ {remaining.length}
+              <ListIcon className="h-3.5 w-3.5" />
+              <span className="font-mono">{remaining.length}</span>
             </button>
           )}
           <button
             type="button"
             onClick={() => window.link.overlay.setClickThrough(!state.clickThrough)}
-            className={`rounded-lg px-2 py-0.5 text-[11px] hover:bg-ink-800 ${state.clickThrough ? "text-accent" : "text-ink-300"}`}
-            title="Let clicks pass through (Ctrl+Shift+K)"
+            className={`grid h-6 w-6 place-items-center rounded-sm hover:bg-raised ${state.clickThrough ? "text-marker" : "text-muted"}`}
+            title={state.clickThrough ? "Clicks pass through (Ctrl+Shift+K to turn off)" : "Let clicks pass through (Ctrl+Shift+K)"}
+            aria-pressed={state.clickThrough}
           >
-            ⇣
+            <PassThroughIcon className="h-3.5 w-3.5" />
           </button>
           <button
             type="button"
             onClick={() => window.link.overlay.hide()}
-            className="rounded-lg px-2 py-0.5 text-[11px] text-ink-300 hover:bg-ink-800"
+            className="grid h-6 w-6 place-items-center rounded-sm text-muted hover:bg-raised hover:text-text"
             title="Hide (Ctrl+Shift+L)"
           >
-            —
+            <MinusIcon className="h-3.5 w-3.5" />
           </button>
         </div>
       </header>
 
       {showChecklist && state.checklist.length > 0 && (
-        <section className="no-drag rounded-xl border border-ink-700 bg-ink-950/90 p-3 text-xs backdrop-blur">
-          <p className="mb-1.5 font-semibold uppercase tracking-wider text-ink-500">Before you hang up</p>
-          <ul className="space-y-1">
+        <section className="no-drag rounded-lg border border-line bg-[#121211]/95 px-3 py-2.5">
+          <p className="mb-1.5 text-xs font-semibold text-muted">Before you hang up</p>
+          <ul className="space-y-1 text-sm">
             {state.checklist.map((c) => (
-              <li key={c.id} className={c.done ? "text-ink-500 line-through" : "text-ink-100"}>
-                {c.done ? "✓" : "○"} {c.text}
+              <li key={c.id} className={c.done ? "text-faint line-through" : "text-text"}>
+                {c.text}
               </li>
             ))}
           </ul>
         </section>
       )}
 
-      <div className="flex flex-1 flex-col gap-2 overflow-hidden">
-        {state.cards.length === 0 ? (
+      <div className="flex flex-1 flex-col gap-1.5 overflow-hidden">
+        {primary ? (
+          <>
+            <PrimaryCard
+              key={primary.id}
+              card={primary}
+              size={state.textSize}
+              onDismiss={() => window.link.overlay.dismiss(primary.id)}
+            />
+            {older.map((card) => (
+              <StubCard key={card.id} card={card} onDismiss={() => window.link.overlay.dismiss(card.id)} />
+            ))}
+          </>
+        ) : (
           state.status === "listening" && (
-            <p className="px-2 pt-1 text-center text-[11px] text-ink-500 [text-shadow:0_1px_2px_rgba(0,0,0,0.8)]">
-              Listening… cards appear here
+            <p className="px-2 pt-1 text-center text-xs text-muted [text-shadow:0_1px_2px_rgba(0,0,0,0.9)]">
+              Listening. Your cue appears here when a question comes up.
             </p>
           )
-        ) : (
-          state.cards.map((card, i) => (
-            <Card key={card.id} card={card} primary={i === 0} onDismiss={() => window.link.overlay.dismiss(card.id)} />
-          ))
         )}
       </div>
     </div>

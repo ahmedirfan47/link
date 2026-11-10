@@ -2,6 +2,9 @@
 
 export type CallMode = "laptop" | "room";
 
+/** Size of the answer text on the overlay. */
+export type OverlayTextSize = "s" | "m" | "l";
+
 export interface Settings {
   serverUrl: string;
   /** laptop = your mic + the computer's sound as two streams; room = one mic hears both sides. */
@@ -12,6 +15,7 @@ export interface Settings {
   /** Send the transcript once after the call to get a summary (it is not stored). */
   summarize: boolean;
   overlayClickThrough: boolean;
+  overlayTextSize: OverlayTextSize;
   overlayBounds: { x: number; y: number; width: number; height: number } | null;
 }
 
@@ -109,6 +113,7 @@ export interface OverlayState {
   cards: OverlayCard[];
   checklist: { id: string; text: string; done: boolean }[];
   clickThrough: boolean;
+  textSize: OverlayTextSize;
 }
 
 /* ------------------------------------------------------------------ */

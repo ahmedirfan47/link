@@ -7,14 +7,16 @@ export function SubmitButton({
   children,
   pendingText = "Saving…",
   className = "btn",
+  disabled = false,
 }: {
   children: React.ReactNode;
   pendingText?: string;
   className?: string;
+  disabled?: boolean;
 }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" disabled={pending} className={className}>
+    <button type="submit" disabled={pending || disabled} className={className}>
       {pending ? pendingText : children}
     </button>
   );
@@ -49,10 +51,14 @@ export function ConfirmButton({
 
 export function StateMessage({ state }: { state: ActionState }) {
   if (state.error) {
-    return <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>;
+    return (
+      <p role="alert" className="rounded-md bg-tally-soft px-2.5 py-1.5 text-sm text-tally">
+        {state.error}
+      </p>
+    );
   }
   if (state.message) {
-    return <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{state.message}</p>;
+    return <p className="rounded-md bg-go-soft px-2.5 py-1.5 text-sm text-go">{state.message}</p>;
   }
   return null;
 }

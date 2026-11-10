@@ -81,35 +81,43 @@ export async function addLink(packId: string, _prev: ActionState, formData: Form
   }
 }
 
-export async function addFile(packId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+/**
+ * The browser uploads the file straight to Storage (so big files skip the
+ * serverless request limit), then calls this to read the text out of it.
+ */
+export async function addUploadedFile(
+  packId: string,
+  storagePath: string,
+  fileName: string,
+  contentType: string,
+): Promise<ActionState> {
+  const { supabase, userId } = await loadPack(packId);
+  const ownPrefix = `${userId}/${packId}/`;
+  if (!storagePath.startsWith(ownPrefix) || storagePath.includes("..")) {
+    return { error: "Upload path is not valid." };
+  }
   try {
-    const file = formData.get("file");
-    if (!(file instanceof File) || file.size === 0) return { error: "Choose a file first." };
-    const { supabase, userId } = await loadPack(packId);
-
+    const download = await supabase.storage.from("sources").download(storagePath);
+    if (download.error || !download.data) {
+      return { error: `Could not read the uploaded file: ${download.error?.message ?? "not found"}` };
+    }
+    const name = fileName.slice(0, 300) || "file";
+    const file = new File([download.data], name, { type: contentType || download.data.type });
     const text = await extractFileText(file);
-    const safeName = file.name.replace(/[^\w.\-]+/g, "_").slice(-120);
-    const storagePath = `${userId}/${packId}/${Date.now()}-${safeName}`;
-    const upload = await supabase.storage
-      .from("sources")
-      .upload(storagePath, file, { contentType: file.type || "application/octet-stream" });
-    if (upload.error) return { error: `Upload failed: ${upload.error.message}` };
 
     const { error } = await supabase.from("sources").insert({
       pack_id: packId,
       kind: "file",
-      title: file.name.slice(0, 300),
+      title: name,
       storage_path: storagePath,
       content_text: text,
       status: "ready",
     });
-    if (error) {
-      await supabase.storage.from("sources").remove([storagePath]);
-      return { error: error.message };
-    }
+    if (error) throw new Error(error.message);
     refresh(packId);
-    return { message: `Added ${file.name} (${text.length.toLocaleString()} characters).` };
+    return { message: `Added ${name}.` };
   } catch (err) {
+    await supabase.storage.from("sources").remove([storagePath]);
     return { error: errorMessage(err) };
   }
 }
@@ -280,5 +288,12 @@ export async function deleteCue(packId: string, cueId: string): Promise<void> {
 export async function approveAll(packId: string): Promise<void> {
   const { supabase } = await loadPack(packId);
   await supabase.from("cues").update({ approved: true }).eq("pack_id", packId).eq("approved", false);
+  refresh(packId);
+}
+
+export async function setCueApproved(packId: string, cueId: string, approved: boolean): Promise<void> {
+  if (!Uuid.safeParse(cueId).success) return;
+  const { supabase } = await loadPack(packId);
+  await supabase.from("cues").update({ approved }).eq("id", cueId);
   refresh(packId);
 }

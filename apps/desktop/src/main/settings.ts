@@ -11,6 +11,7 @@ const DEFAULTS: Settings = {
   micDeviceId: null,
   summarize: true,
   overlayClickThrough: false,
+  overlayTextSize: "m",
   overlayBounds: null,
 };
 
@@ -34,6 +35,7 @@ export function setSettings(patch: Partial<Settings>): Settings {
   const next: Settings = { ...getSettings(), ...patch };
   next.serverUrl = next.serverUrl.trim().replace(/\/+$/, "") || DEFAULT_SERVER_URL;
   next.sensitivity = Math.min(5, Math.max(1, Math.round(next.sensitivity)));
+  if (!["s", "m", "l"].includes(next.overlayTextSize)) next.overlayTextSize = "m";
   cache = next;
   try {
     writeFileSync(file(), JSON.stringify(next, null, 2), "utf8");

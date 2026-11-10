@@ -7,8 +7,9 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["unpdf", "mammoth"],
   experimental: {
     serverActions: {
-      // Source files (PDF, DOCX) are uploaded through Server Actions.
-      bodySizeLimit: "12mb",
+      // Files go straight from the browser to Supabase Storage, so actions only
+      // carry text (notes, answers). Vercel caps request bodies at 4.5 MB anyway.
+      bodySizeLimit: "2mb",
     },
   },
   turbopack: {
