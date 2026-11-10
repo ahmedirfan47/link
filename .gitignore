@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# builds
+.next/
+out/
+dist/
+build/
+release/
+*.tsbuildinfo
+
+# env
+.env
+.env.local
+.env.*.local
+
+# logs
+npm-debug.log*
+*.log
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
+
+# local data (transcripts and audio never leave the device by default)
+apps/desktop/data/
+*.sqlite
+*.sqlite-journal
