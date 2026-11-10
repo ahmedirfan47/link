@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { HotkeyName, LinkBridge, OverlayState, SessionEndInput, Settings } from "../shared/types";
+import type { AuthEvent, DeepLink, HotkeyName, LinkBridge, OverlayState, SessionEndInput, Settings } from "../shared/types";
 
 /**
  * The only bridge between the windows and the main process.
@@ -18,6 +18,7 @@ const bridge: LinkBridge = {
   auth: {
     getUser: () => ipcRenderer.invoke("auth:get-user"),
     signIn: (email, password) => ipcRenderer.invoke("auth:sign-in", email, password),
+    signInWithBrowser: () => ipcRenderer.invoke("auth:sign-in-browser"),
     signOut: () => ipcRenderer.invoke("auth:sign-out"),
   },
   settings: {
@@ -43,6 +44,10 @@ const bridge: LinkBridge = {
   control: {
     onDismiss: (listener) => subscribe<string>("control:dismiss", listener),
     onHotkey: (listener) => subscribe<HotkeyName>("control:hotkey", listener),
+    onDeepLink: (listener) => subscribe<DeepLink>("control:deep-link", listener),
+    takePendingDeepLink: () => ipcRenderer.invoke("control:take-deep-link"),
+    onAuth: (listener) => subscribe<AuthEvent>("control:auth", listener),
+    openWebsite: (path) => ipcRenderer.send("control:open-website", path),
   },
 };
 

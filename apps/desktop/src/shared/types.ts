@@ -16,6 +16,8 @@ export interface Settings {
   summarize: boolean;
   overlayClickThrough: boolean;
   overlayTextSize: OverlayTextSize;
+  /** Skip the "tell them you are using Link" reminder before each call. */
+  skipConsentReminder: boolean;
   overlayBounds: { x: number; y: number; width: number; height: number } | null;
 }
 
@@ -122,10 +124,18 @@ export interface OverlayState {
 
 export type HotkeyName = "clearCards";
 
+/** Things the website can ask the app to do through link-app:// links. */
+export type DeepLink = { type: "start"; packId: string } | { type: "open" };
+
+/** Result of "Sign in with your browser", pushed from the main process. */
+export type AuthEvent = { user: UserInfo } | { error: string };
+
 export interface LinkBridge {
   auth: {
     getUser(): Promise<UserInfo | null>;
     signIn(email: string, password: string): Promise<Result<UserInfo>>;
+    /** Opens the website to sign in; the result arrives through control.onAuth. */
+    signInWithBrowser(): Promise<Result<null>>;
     signOut(): Promise<void>;
   };
   settings: {
@@ -155,5 +165,12 @@ export interface LinkBridge {
     /** Control window: a card was dismissed in the overlay. */
     onDismiss(listener: (cardId: string) => void): () => void;
     onHotkey(listener: (name: HotkeyName) => void): () => void;
+    /** A link-app:// link the app was opened with or received while running. */
+    onDeepLink(listener: (link: DeepLink) => void): () => void;
+    /** Returns (once) a deep link that arrived before the window was ready. */
+    takePendingDeepLink(): Promise<DeepLink | null>;
+    onAuth(listener: (event: AuthEvent) => void): () => void;
+    /** Opens a page of the Link website in the default browser. */
+    openWebsite(path: string): void;
   };
 }

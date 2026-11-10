@@ -26,12 +26,15 @@ const TEXT_SIZES: { id: OverlayTextSize; label: string }[] = [
 export function Home({
   user,
   settings,
+  requestedPackId,
   onSettings,
   onStart,
   onSignOut,
 }: {
   user: UserInfo;
   settings: Settings;
+  /** The website asked to start this pack; select it and go to the start step. */
+  requestedPackId: string | null;
   onSettings: (patch: Partial<Settings>) => void;
   onStart: (pack: PackSummary) => void;
   onSignOut: () => void;
@@ -63,6 +66,18 @@ export function Home({
       .catch(() => setMics([]));
   }, []);
 
+  // "Start live call" on the website: once packs are loaded, pick that pack and start.
+  useEffect(() => {
+    if (!requestedPackId || !packs) return;
+    const requested = packs.find((p) => p.id === requestedPackId);
+    if (requested) {
+      setSelected(requested.id);
+      onStart(requested);
+    } else if (packs.length > 0) {
+      setError("That pack was not found in this account. Refresh, or check you are signed in to the same account.");
+    }
+  }, [requestedPackId, packs, onStart]);
+
   const pack = packs?.find((p) => p.id === selected) ?? null;
 
   return (
@@ -83,9 +98,14 @@ export function Home({
         <section>
           <div className="mb-2 flex items-baseline justify-between">
             <h2 className="text-base font-bold">Pack</h2>
-            <button type="button" className="text-sm text-muted hover:text-text" onClick={() => void refresh()}>
-              Refresh
-            </button>
+            <div className="flex gap-3 text-sm text-muted">
+              <button type="button" className="hover:text-text" onClick={() => window.link.control.openWebsite("/packs")}>
+                Edit on website
+              </button>
+              <button type="button" className="hover:text-text" onClick={() => void refresh()}>
+                Refresh
+              </button>
+            </div>
           </div>
 
           {packs === null ? (
@@ -95,9 +115,13 @@ export function Home({
           ) : packs.length === 0 && !error ? (
             <div className="rounded-md border border-dashed border-line-strong px-4 py-4 text-sm text-text-2">
               You have no packs yet. Create one on the{" "}
-              <a href={`${settings.serverUrl}/packs/new`} target="_blank" rel="noreferrer" className="font-semibold text-text underline underline-offset-2">
+              <button
+                type="button"
+                onClick={() => window.link.control.openWebsite("/packs/new")}
+                className="font-semibold text-text underline underline-offset-2"
+              >
                 Link website
-              </a>
+              </button>
               , add your material and approve some cues. Then press Refresh.
             </div>
           ) : (
@@ -221,6 +245,19 @@ export function Home({
               ))}
             </div>
           </div>
+
+          <label className="flex items-start gap-3 text-base">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 accent-[#ededea]"
+              checked={!settings.skipConsentReminder}
+              onChange={(e) => onSettings({ skipConsentReminder: !e.target.checked })}
+            />
+            <span>
+              Consent reminder before each call
+              <span className="block text-sm text-muted">A prompt to tell the other side you are using Link.</span>
+            </span>
+          </label>
 
           <label className="flex items-start gap-3 text-base">
             <input

@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CallIcon, PackIcon } from "./icons";
+import { CallIcon, PackIcon, SettingsIcon } from "./icons";
 
 const ITEMS = [
   { href: "/packs", label: "Packs", Icon: PackIcon },
   { href: "/calls", label: "Calls", Icon: CallIcon },
+  { href: "/settings", label: "Settings", Icon: SettingsIcon },
 ] as const;
 
 export function NavLinks() {

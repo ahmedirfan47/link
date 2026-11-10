@@ -3,6 +3,7 @@ import { SessionEventTypeSchema, normalizeText } from "@link/core";
 import { summarizeSession, type SessionSummary } from "@/lib/ai";
 import { HttpError, errorResponse, requireBearer } from "@/lib/supabase/bearer";
 import type { PackRow } from "@/lib/rows";
+import { LimitError, consume } from "@/lib/usage";
 
 export const maxDuration = 120;
 
@@ -32,7 +33,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const { id } = await params;
     if (!z.uuid().safeParse(id).success) throw new HttpError(400, "Invalid session id.");
-    const { supabase } = await requireBearer(request);
+    const { supabase, userId } = await requireBearer(request);
     const parsed = BodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "Invalid request.");
     const body = parsed.data;
@@ -85,7 +86,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
 
     let summary: SessionSummary | null = null;
+    let summaryAllowed = true;
     if (body.transcript && body.transcript.length > 0) {
+      try {
+        await consume(userId, "call_summaries");
+      } catch (err) {
+        if (!(err instanceof LimitError)) throw err;
+        summaryAllowed = false;
+      }
+    }
+    if (summaryAllowed && body.transcript && body.transcript.length > 0) {
       const hesitations = body.events
         .filter((e) => e.type === "hesitation")
         .map((e) => String(e.payload.context ?? e.payload.prompt ?? ""))

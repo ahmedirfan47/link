@@ -4,6 +4,7 @@ import { z } from "zod";
 import { gradeAnswer, type Grade } from "@/lib/ai";
 import { requireUser } from "@/lib/supabase/server";
 import type { CueRow, PackRow } from "@/lib/rows";
+import { consume } from "@/lib/usage";
 
 export interface GradeResult {
   grade?: Grade;
@@ -21,7 +22,8 @@ export async function gradeRehearsal(packId: string, cueId: string, answer: stri
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
 
   try {
-    const { supabase } = await requireUser();
+    const { supabase, userId } = await requireUser();
+    await consume(userId, "rehearsal_grades");
     const [{ data: pack }, { data: cue }] = await Promise.all([
       supabase.from("packs").select("*").eq("id", packId).single(),
       supabase.from("cues").select("prompt, bullets").eq("id", cueId).eq("pack_id", packId).single(),

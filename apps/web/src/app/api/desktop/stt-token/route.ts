@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { assemblyaiApiKey } from "@/lib/env";
 import { HttpError, errorResponse, requireBearer } from "@/lib/supabase/bearer";
+import { consume } from "@/lib/usage";
 
 const BodySchema = z.object({ language: z.string().max(16).default("en") });
 
@@ -16,7 +17,8 @@ function speechModel(language: string): string {
  */
 export async function POST(request: Request) {
   try {
-    await requireBearer(request);
+    const { userId } = await requireBearer(request);
+    await consume(userId, "stt_tokens");
     const { language } = BodySchema.parse(await request.json().catch(() => ({})));
     const apiKey = assemblyaiApiKey();
 

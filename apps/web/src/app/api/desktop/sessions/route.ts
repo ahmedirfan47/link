@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { HttpError, errorResponse, requireBearer } from "@/lib/supabase/bearer";
+import { consume } from "@/lib/usage";
 
 const BodySchema = z.object({
   packId: z.uuid().nullable(),
@@ -9,9 +10,10 @@ const BodySchema = z.object({
 /** Starts a live session (one per call). */
 export async function POST(request: Request) {
   try {
-    const { supabase } = await requireBearer(request);
+    const { supabase, userId } = await requireBearer(request);
     const parsed = BodySchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) throw new HttpError(400, "Invalid request.");
+    await consume(userId, "live_sessions");
 
     const { data, error } = await supabase
       .from("sessions")

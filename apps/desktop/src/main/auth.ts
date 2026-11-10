@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "node:crypto";
 import { app, safeStorage } from "electron";
 import { existsSync } from "node:fs";
 import { readFile, unlink, writeFile } from "node:fs/promises";
@@ -111,4 +112,46 @@ export async function signOut(): Promise<void> {
 export async function accessToken(): Promise<string | null> {
   const { data } = await (await supabase()).auth.getSession();
   return data.session?.access_token ?? null;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Sign in with the browser                                           */
+/* ------------------------------------------------------------------ */
+
+let pendingVerifier: { value: string; createdAt: number } | null = null;
+
+/**
+ * Step one: make a secret, open the website with its hash (PKCE). The website
+ * sends the user back to link-app://auth?code=... once they confirm.
+ */
+export function browserSignInUrl(serverUrl: string): string {
+  const verifier = randomBytes(32).toString("base64url");
+  pendingVerifier = { value: verifier, createdAt: Date.now() };
+  const challenge = createHash("sha256").update(verifier).digest("base64url");
+  return `${serverUrl}/desktop/connect?challenge=${challenge}`;
+}
+
+/** Step two: trade the code plus the secret for a session. */
+export async function completeBrowserSignIn(serverUrl: string, code: string): Promise<Result<UserInfo>> {
+  const verifier = pendingVerifier;
+  pendingVerifier = null;
+  if (!verifier || Date.now() - verifier.createdAt > 10 * 60_000) {
+    return { ok: false, error: "That sign-in link expired. Click “Sign in with your browser” again." };
+  }
+  try {
+    const res = await fetch(`${serverUrl}/api/desktop/handoff`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code, verifier: verifier.value }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    const json = (await res.json().catch(() => ({}))) as { tokenHash?: string; error?: string };
+    if (!res.ok || !json.tokenHash) return { ok: false, error: json.error ?? `Sign-in failed (${res.status}).` };
+
+    const { data, error } = await (await supabase()).auth.verifyOtp({ token_hash: json.tokenHash, type: "email" });
+    if (error || !data.user) return { ok: false, error: error?.message ?? "Sign-in failed." };
+    return { ok: true, data: { id: data.user.id, email: data.user.email ?? "" } };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }

@@ -6,8 +6,9 @@ import { CrossIcon, FileIcon, LinkIcon, NoteIcon } from "@/components/icons";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { SOURCE_KIND_LABELS, type ActionState, type SourceSummary } from "@/lib/rows";
 import { addLink, addNote, addUploadedFile, deleteSource } from "./actions";
+import { ChatImport } from "./chat-import";
 
-type Tab = "file" | "link" | "note";
+type Tab = "file" | "link" | "note" | "chats";
 
 const ACCEPT = ".pdf,.docx,.txt,.md,.markdown,.csv,.json";
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -144,6 +145,7 @@ export function SourcesPanel({
             { id: "file", label: "File" },
             { id: "link", label: "Link" },
             { id: "note", label: "Note" },
+            { id: "chats", label: "Chats" },
           ] as const
         ).map((t) => (
           <button
@@ -159,6 +161,8 @@ export function SourcesPanel({
       </div>
 
       {tab === "file" && <FileUpload packId={packId} userId={userId} />}
+
+      {tab === "chats" && <ChatImport packId={packId} userId={userId} />}
 
       {tab === "link" && (
         <form action={linkAction} className="space-y-2">

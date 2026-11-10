@@ -1,10 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { signIn, signUp, type AuthState } from "./actions";
 
-export function LoginForm({ initialError }: { initialError?: string }) {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+export function LoginForm({
+  initialError,
+  next,
+  initialMode = "signin",
+}: {
+  initialError?: string;
+  next: string;
+  initialMode?: "signin" | "signup";
+}) {
+  const [mode, setMode] = useState<"signin" | "signup">(initialMode);
   const [signInState, signInAction, signingIn] = useActionState<AuthState, FormData>(signIn, {});
   const [signUpState, signUpAction, signingUp] = useActionState<AuthState, FormData>(signUp, {});
 
@@ -14,6 +23,7 @@ export function LoginForm({ initialError }: { initialError?: string }) {
 
   return (
     <form action={mode === "signin" ? signInAction : signUpAction} className="space-y-4">
+      <input type="hidden" name="next" value={next} />
       <div>
         <label className="field-label" htmlFor="email">
           Email
@@ -21,9 +31,16 @@ export function LoginForm({ initialError }: { initialError?: string }) {
         <input id="email" name="email" type="email" autoComplete="email" required className="field" />
       </div>
       <div>
-        <label className="field-label" htmlFor="password">
-          Password
-        </label>
+        <div className="flex items-baseline justify-between">
+          <label className="field-label" htmlFor="password">
+            Password
+          </label>
+          {mode === "signin" && (
+            <Link href="/forgot" className="text-xs text-muted underline-offset-2 hover:text-ink hover:underline">
+              Forgot password?
+            </Link>
+          )}
+        </div>
         <input
           id="password"
           name="password"
@@ -57,6 +74,19 @@ export function LoginForm({ initialError }: { initialError?: string }) {
           {mode === "signin" ? "Create an account" : "Sign in"}
         </button>
       </p>
+      {mode === "signup" && (
+        <p className="text-xs text-muted">
+          By creating an account you agree to the{" "}
+          <Link href="/terms" className="underline underline-offset-2">
+            terms
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="underline underline-offset-2">
+            privacy policy
+          </Link>
+          .
+        </p>
+      )}
     </form>
   );
 }

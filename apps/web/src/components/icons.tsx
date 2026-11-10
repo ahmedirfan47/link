@@ -159,3 +159,30 @@ export function RehearseIcon(p: IconProps) {
     </Svg>
   );
 }
+
+/** Settings: two sliders. */
+export function SettingsIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M2.5 5h11M2.5 11h11" />
+      <circle cx="6" cy="5" r="1.75" fill="var(--color-canvas)" />
+      <circle cx="10.5" cy="11" r="1.75" fill="var(--color-canvas)" />
+    </Svg>
+  );
+}
+
+export function DownloadIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10" />
+    </Svg>
+  );
+}
+
+export function PlayIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M5 3.5v9l7-4.5z" />
+    </Svg>
+  );
+}

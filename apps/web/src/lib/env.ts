@@ -43,3 +43,17 @@ export function firecrawlApiKey(): string | null {
 export function assemblyaiApiKey(): string {
   return required("ASSEMBLYAI_API_KEY", process.env.ASSEMBLYAI_API_KEY);
 }
+
+/**
+ * Server-only admin key (Supabase "secret" key, sb_secret_...). Used for things a
+ * signed-in user cannot do for themselves: recording usage, redeeming desktop
+ * sign-in codes, the MCP connector and deleting an account. Never sent to a browser.
+ */
+export function supabaseSecretKey(): string {
+  return required("SUPABASE_SECRET_KEY", process.env.SUPABASE_SECRET_KEY);
+}
+
+/** Where the Windows installer is published (a public GitHub repo with releases only). */
+export function releasesRepo(): string {
+  return process.env.NEXT_PUBLIC_LINK_RELEASES_REPO?.trim() || "ahmedirfan47/link-releases";
+}

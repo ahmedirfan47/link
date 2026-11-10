@@ -15,12 +15,15 @@ export function GenerateButton({
   hasCues,
   generating,
   large = false,
+  quiet = false,
 }: {
   packId: string;
   hasSources: boolean;
   hasCues: boolean;
   generating: boolean;
   large?: boolean;
+  /** Secondary styling, for when another button is the main action. */
+  quiet?: boolean;
 }) {
   const [state, action, pending] = useActionState<ActionState>(generateCues.bind(null, packId), {});
   const [notice, setNotice] = useState<ActionState>({});
@@ -38,7 +41,7 @@ export function GenerateButton({
         <button
           type="submit"
           disabled={!hasSources || busy}
-          className={`btn ${large ? "btn-lg" : ""}`}
+          className={`${quiet ? "btn-line" : "btn"} ${large ? "btn-lg" : ""}`}
           title={!hasSources ? "Add a source first" : hasCues ? "Approved cues are kept" : undefined}
           onClick={(e) => {
             if (hasCues && !window.confirm("Regenerate? Cues you approved are kept; the rest are replaced.")) {

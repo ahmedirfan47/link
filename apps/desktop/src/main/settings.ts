@@ -12,6 +12,7 @@ const DEFAULTS: Settings = {
   summarize: true,
   overlayClickThrough: false,
   overlayTextSize: "m",
+  skipConsentReminder: false,
   overlayBounds: null,
 };
 

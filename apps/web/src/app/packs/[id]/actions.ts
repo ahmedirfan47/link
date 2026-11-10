@@ -13,11 +13,13 @@ import {
 } from "@/lib/extract";
 import { requireUser } from "@/lib/supabase/server";
 import type { ActionState, PackRow } from "@/lib/rows";
+import { consume } from "@/lib/usage";
 
 const Uuid = z.uuid();
 
 function errorMessage(err: unknown): string {
   if (err instanceof ExtractionError) return err.message;
+  if (err instanceof Error && err.name === "ChatExportError") return err.message;
   if (err instanceof Error) return err.message;
   return "Something went wrong. Try again.";
 }
@@ -63,7 +65,8 @@ export async function addNote(packId: string, _prev: ActionState, formData: Form
 export async function addLink(packId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const { url, kind } = classifyUrl(String(formData.get("url") ?? ""));
-    const { supabase } = await loadPack(packId);
+    const { supabase, userId } = await loadPack(packId);
+    await consume(userId, "link_imports");
     const { title, text } = await extractUrlText(url, kind);
     const { error } = await supabase.from("sources").insert({
       pack_id: packId,
@@ -138,7 +141,7 @@ export async function deleteSource(packId: string, sourceId: string): Promise<vo
 export async function generateCues(packId: string, _prev: ActionState): Promise<ActionState> {
   let supabaseRef: Awaited<ReturnType<typeof loadPack>>["supabase"] | null = null;
   try {
-    const { supabase, pack } = await loadPack(packId);
+    const { supabase, pack, userId } = await loadPack(packId);
     supabaseRef = supabase;
 
     const { data: sources } = await supabase
@@ -151,6 +154,7 @@ export async function generateCues(packId: string, _prev: ActionState): Promise<
       .filter((s) => (s.content_text ?? "").trim().length > 0)
       .map((s) => ({ title: s.title as string, kind: s.kind as string, text: s.content_text as string }));
     if (usable.length === 0) return { error: "Add at least one source first." };
+    await consume(userId, "pack_generations");
 
     await supabase.from("packs").update({ status: "generating" }).eq("id", packId);
     const generated = await generatePack(pack, usable);
@@ -206,9 +210,10 @@ export async function answerGap(
     const answer = String(formData.get("answer") ?? "").trim().slice(0, 2000);
     if (answer.length < 2) return { error: "Write an answer first." };
 
-    const { supabase, pack } = await loadPack(packId);
+    const { supabase, pack, userId } = await loadPack(packId);
     const { data: gap } = await supabase.from("gap_questions").select("question").eq("id", gapId).single();
     if (!gap) return { error: "Question not found." };
+    await consume(userId, "answer_cues");
 
     const cue = await cueFromGapAnswer(pack, gap.question as string, answer);
     const { error } = await supabase.from("cues").insert({ pack_id: packId, ...cue, approved: true });
@@ -296,4 +301,83 @@ export async function setCueApproved(packId: string, cueId: string, approved: bo
   const { supabase } = await loadPack(packId);
   await supabase.from("cues").update({ approved }).eq("id", cueId);
   refresh(packId);
+}
+
+/* ------------------------------------------------------------------ */
+/*  ChatGPT / Claude data export                                       */
+/* ------------------------------------------------------------------ */
+
+export interface ExportListing {
+  error?: string;
+  chats?: { id: string; title: string; updatedAt: string; source: "chatgpt" | "claude"; messages: number }[];
+}
+
+async function readExport(packId: string, storagePath: string) {
+  const loaded = await loadPack(packId);
+  if (!storagePath.startsWith(`${loaded.userId}/${packId}/import-`) || storagePath.includes("..")) {
+    throw new Error("Upload path is not valid.");
+  }
+  const download = await loaded.supabase.storage.from("sources").download(storagePath);
+  if (download.error || !download.data) throw new Error("The uploaded export could not be read. Upload it again.");
+  const bytes = new Uint8Array(await download.data.arrayBuffer());
+  const { parseChatExport } = await import("@/lib/chat-export");
+  return { ...loaded, chats: parseChatExport(bytes, storagePath) };
+}
+
+/** Lists the chats inside an uploaded export so the user can pick the relevant ones. */
+export async function scanChatExport(packId: string, storagePath: string): Promise<ExportListing> {
+  try {
+    const { chats } = await readExport(packId, storagePath);
+    return {
+      chats: chats.slice(0, 3000).map((c) => ({
+        id: c.id,
+        title: c.title.slice(0, 200),
+        updatedAt: c.updatedAt,
+        source: c.source,
+        messages: c.messages.length,
+      })),
+    };
+  } catch (err) {
+    return { error: errorMessage(err) };
+  }
+}
+
+const MAX_CHATS_PER_IMPORT = 10;
+
+/** Adds the chosen chats as sources, then deletes the uploaded export. */
+export async function importChats(packId: string, storagePath: string, chatIds: string[]): Promise<ActionState> {
+  try {
+    const ids = [...new Set(chatIds)].slice(0, MAX_CHATS_PER_IMPORT);
+    if (ids.length === 0) return { error: "Pick at least one chat." };
+    const { supabase, userId, chats } = await readExport(packId, storagePath);
+    await consume(userId, "chat_imports");
+
+    const { chatToText } = await import("@/lib/chat-export");
+    const chosen = chats.filter((c) => ids.includes(c.id));
+    if (chosen.length === 0) return { error: "Those chats were not found in the export." };
+
+    const { error } = await supabase.from("sources").insert(
+      chosen.map((c) => ({
+        pack_id: packId,
+        kind: "chat_export",
+        title: `${c.source === "chatgpt" ? "ChatGPT" : "Claude"}: ${c.title}`.slice(0, 300),
+        content_text: chatToText(c).slice(0, MAX_SOURCE_CHARS),
+        status: "ready",
+      })),
+    );
+    if (error) return { error: error.message };
+
+    await supabase.storage.from("sources").remove([storagePath]);
+    refresh(packId);
+    return { message: `Added ${chosen.length} chat${chosen.length === 1 ? "" : "s"}.` };
+  } catch (err) {
+    return { error: errorMessage(err) };
+  }
+}
+
+/** Deletes an uploaded export without importing anything. */
+export async function discardChatExport(packId: string, storagePath: string): Promise<void> {
+  const { supabase, userId } = await loadPack(packId);
+  if (!storagePath.startsWith(`${userId}/${packId}/import-`)) return;
+  await supabase.storage.from("sources").remove([storagePath]);
 }

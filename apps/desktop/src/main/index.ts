@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   BrowserWindow,
   app,
@@ -9,8 +9,9 @@ import {
   session,
   shell,
 } from "electron";
-import { HOTKEYS } from "../shared/config";
-import type { OverlayState, SessionEndInput, Settings } from "../shared/types";
+import electronUpdater from "electron-updater";
+import { DESKTOP_SCHEME, HOTKEYS } from "../shared/config";
+import type { AuthEvent, DeepLink, OverlayState, SessionEndInput, Settings } from "../shared/types";
 import * as api from "./api";
 import * as auth from "./auth";
 import { getSettings, setSettings } from "./settings";
@@ -18,6 +19,8 @@ import { getSettings, setSettings } from "./settings";
 let control: BrowserWindow | null = null;
 let overlay: BrowserWindow | null = null;
 let lastOverlayState: OverlayState | null = null;
+/** A link that arrived before the control window was ready to receive it. */
+let pendingDeepLink: DeepLink | null = null;
 
 const preload = join(__dirname, "../preload/index.js");
 
@@ -26,6 +29,67 @@ function load(win: BrowserWindow, page: "index" | "overlay"): void {
   if (devUrl) void win.loadURL(`${devUrl}/${page}.html`);
   else void win.loadFile(join(__dirname, `../renderer/${page}.html`));
 }
+
+function focusControl(): void {
+  if (!control) return;
+  if (control.isMinimized()) control.restore();
+  control.show();
+  control.focus();
+}
+
+/* ------------------------------------------------------------------ */
+/*  link-app:// links from the website                                 */
+/* ------------------------------------------------------------------ */
+
+function registerProtocol(): void {
+  if (process.defaultApp && process.argv.length >= 2) {
+    // Development: Windows must launch electron.exe with the app path.
+    app.setAsDefaultProtocolClient(DESKTOP_SCHEME, process.execPath, [resolve(process.argv[1]!)]);
+  } else {
+    app.setAsDefaultProtocolClient(DESKTOP_SCHEME);
+  }
+}
+
+function findLink(argv: string[]): string | undefined {
+  return argv.find((a) => a.startsWith(`${DESKTOP_SCHEME}://`));
+}
+
+async function handleLink(raw: string): Promise<void> {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return;
+  }
+  focusControl();
+  const action = url.hostname || url.pathname.replace(/^\/+/, "");
+
+  if (action === "auth") {
+    const code = url.searchParams.get("code") ?? "";
+    const result = await auth.completeBrowserSignIn(getSettings().serverUrl, code);
+    const event: AuthEvent = result.ok ? { user: result.data } : { error: result.error };
+    control?.webContents.send("control:auth", event);
+    return;
+  }
+
+  let link: DeepLink | null = null;
+  if (action === "start") {
+    const packId = url.searchParams.get("pack") ?? "";
+    if (/^[0-9a-f-]{36}$/i.test(packId)) link = { type: "start", packId };
+  } else if (action === "open") {
+    link = { type: "open" };
+  }
+  if (!link) return;
+
+  // Kept until the window takes it, so a link that arrives while the window is
+  // still loading is not lost. The event just tells a ready window to take it.
+  pendingDeepLink = link;
+  control?.webContents.send("control:deep-link", link);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Windows                                                            */
+/* ------------------------------------------------------------------ */
 
 function createControlWindow(): void {
   control = new BrowserWindow({
@@ -41,7 +105,7 @@ function createControlWindow(): void {
   load(control, "index");
   // Links open in the default browser, never inside the app.
   control.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url);
+    if (/^https?:\/\//.test(url)) void shell.openExternal(url);
     return { action: "deny" };
   });
   control.on("closed", () => {
@@ -154,6 +218,10 @@ function registerMediaHandlers(): void {
 function registerIpc(): void {
   ipcMain.handle("auth:get-user", () => auth.getUser());
   ipcMain.handle("auth:sign-in", (_e, email: string, password: string) => auth.signIn(email, password));
+  ipcMain.handle("auth:sign-in-browser", async () => {
+    await shell.openExternal(auth.browserSignInUrl(getSettings().serverUrl));
+    return { ok: true, data: null };
+  });
   ipcMain.handle("auth:sign-out", () => auth.signOut());
 
   ipcMain.handle("settings:get", () => getSettings());
@@ -165,6 +233,16 @@ function registerIpc(): void {
   ipcMain.handle("api:fallback", (_e, packId: string, question: string) => api.fallback(packId, question));
   ipcMain.handle("api:start-session", (_e, packId: string, title: string) => api.startSession(packId, title));
   ipcMain.handle("api:end-session", (_e, id: string, body: SessionEndInput) => api.endSession(id, body));
+
+  ipcMain.handle("control:take-deep-link", () => {
+    const link = pendingDeepLink;
+    pendingDeepLink = null;
+    return link;
+  });
+  ipcMain.on("control:open-website", (_e, path: string) => {
+    const safePath = typeof path === "string" && path.startsWith("/") ? path : "/";
+    void shell.openExternal(`${getSettings().serverUrl}${safePath}`);
+  });
 
   ipcMain.on("overlay:update", (_e, state: OverlayState) => {
     lastOverlayState = { ...state, clickThrough: getSettings().overlayClickThrough };
@@ -178,15 +256,31 @@ function registerIpc(): void {
   ipcMain.on("overlay:set-click-through", (_e, enabled: boolean) => setClickThrough(enabled));
 }
 
-// One instance only: a second launch focuses the existing window.
+/** Installed builds check GitHub Releases and update on the next restart. */
+function checkForUpdates(): void {
+  if (!app.isPackaged) return;
+  const { autoUpdater } = electronUpdater;
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.checkForUpdatesAndNotify().catch((err) => console.error("Update check failed", err));
+}
+
+// One instance only: a second launch (including a link-app:// link) goes to the running one.
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on("second-instance", () => {
-    if (control) {
-      if (control.isMinimized()) control.restore();
-      control.focus();
-    }
+  registerProtocol();
+
+  app.on("second-instance", (_event, argv) => {
+    focusControl();
+    const link = findLink(argv);
+    if (link) void handleLink(link);
+  });
+
+  // macOS delivers links this way.
+  app.on("open-url", (event, url) => {
+    event.preventDefault();
+    void handleLink(url);
   });
 
   void app.whenReady().then(() => {
@@ -196,6 +290,13 @@ if (!app.requestSingleInstanceLock()) {
     createControlWindow();
     createOverlayWindow();
     registerHotkeys();
+    checkForUpdates();
+
+    // Opened by a link while the app was closed.
+    const initial = findLink(process.argv);
+    if (initial) {
+      control?.webContents.once("did-finish-load", () => void handleLink(initial));
+    }
   });
 
   app.on("will-quit", () => globalShortcut.unregisterAll());

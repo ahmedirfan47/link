@@ -20,6 +20,7 @@ import { CueList } from "./cue-list";
 import { GapsPanel } from "./gaps-panel";
 import { GenerateButton } from "./generate-panel";
 import { SourcesPanel } from "./sources-panel";
+import { StartCallButton } from "./start-call-button";
 
 // Pack generation runs inside a Server Action on this page and can take a few minutes.
 export const maxDuration = 300;
@@ -108,8 +109,10 @@ export default async function PackPage({ params }: { params: Promise<{ id: strin
                   hasSources={sources.length > 0}
                   hasCues
                   generating={pack.status === "generating"}
+                  quiet
                 />
               )}
+              {cues.length > 0 && <StartCallButton packId={pack.id} disabled={approved === 0} />}
             </>
           )
         }

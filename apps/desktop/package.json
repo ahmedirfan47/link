@@ -1,6 +1,6 @@
 {
   "name": "@link/desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Link live assistant for Windows",
   "author": "Link",
@@ -10,10 +10,12 @@
     "build": "electron-vite build",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
-    "dist": "electron-vite build && electron-builder --win --config electron-builder.yml"
+    "dist": "electron-vite build && electron-builder --win --config electron-builder.yml --publish never",
+    "release": "electron-vite build && electron-builder --win --config electron-builder.yml --publish always"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.119.0"
+    "@supabase/supabase-js": "^2.119.0",
+    "electron-updater": "^6.8.11"
   },
   "devDependencies": {
     "@fontsource-variable/atkinson-hyperlegible-mono": "^5.3.0",

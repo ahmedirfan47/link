@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { IdentifyUser } from "./analytics";
+import { DownloadIcon } from "./icons";
 import { NavLinks } from "./nav-links";
 
 /**
@@ -10,6 +12,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
   const email = typeof data?.claims?.email === "string" ? data.claims.email : "";
+  const userId = typeof data?.claims?.sub === "string" ? data.claims.sub : "";
 
   return (
     <div className="min-h-screen md:grid md:grid-cols-[208px_1fr]">
@@ -18,7 +21,14 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           Link
         </Link>
         <NavLinks />
-        <div className="ml-auto md:mt-auto md:ml-0 md:border-t md:border-line md:px-2 md:pt-3">
+        <Link
+          href="/download"
+          className="hidden h-8 items-center gap-2 rounded-md px-2 text-sm text-muted transition-colors hover:text-ink md:mt-auto md:mb-2 md:flex"
+        >
+          <DownloadIcon className="h-4 w-4 shrink-0" />
+          Desktop app
+        </Link>
+        <div className="ml-auto md:ml-0 md:border-t md:border-line md:px-2 md:pt-3">
           <p className="hidden truncate text-xs text-muted md:block" title={email}>
             {email}
           </p>
@@ -30,6 +40,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
       <div className="min-w-0 bg-surface md:min-h-screen">{children}</div>
+      <IdentifyUser id={userId} />
     </div>
   );
 }

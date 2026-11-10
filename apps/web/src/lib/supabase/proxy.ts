@@ -2,8 +2,19 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/env";
 
-// /api/desktop authenticates with a bearer token instead of cookies (see lib/supabase/bearer.ts).
-const PUBLIC_PATHS = ["/login", "/auth", "/api/desktop"];
+// Pages anyone can open, plus APIs that authenticate on their own:
+// /api/desktop with a bearer token, /api/mcp with a personal token in the URL.
+const PUBLIC_PATHS = [
+  "/login",
+  "/forgot",
+  "/auth",
+  "/download",
+  "/privacy",
+  "/terms",
+  "/api/desktop",
+  "/api/mcp",
+  "/ingest",
+];
 
 /**
  * Runs before every page: refreshes the Supabase session cookie and sends
@@ -33,15 +44,14 @@ export async function updateSession(request: NextRequest) {
   const signedIn = Boolean(data?.claims?.sub);
 
   const path = request.nextUrl.pathname;
-  // "/?code=..." is an email confirmation link; the home page forwards it to /auth/callback.
-  const isConfirmation = path === "/" && request.nextUrl.searchParams.has("code");
-  const isPublic =
-    isConfirmation || PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
+  // The landing page is public; it also forwards "/?code=..." confirmation links.
+  const isPublic = path === "/" || PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 
   if (!signedIn && !isPublic) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.search = "";
+    // Come back to the same page after signing in.
+    url.search = `?next=${encodeURIComponent(path + request.nextUrl.search)}`;
     return NextResponse.redirect(url);
   }
 

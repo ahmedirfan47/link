@@ -6,12 +6,26 @@ directories:
 files:
   - out/**
   - package.json
+protocols:
+  - name: Link
+    schemes:
+      - link-app
 win:
   target:
     - target: nsis
       arch: [x64]
+  # A fixed file name lets the website always link to .../releases/latest/download/Link-Setup.exe
+  artifactName: Link-Setup.${ext}
 nsis:
   oneClick: false
+  perMachine: false
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   shortcutName: Link
+# Installers and update files go to a public repo that holds releases only,
+# so the source code repo can stay private.
+publish:
+  provider: github
+  owner: ahmedirfan47
+  repo: link-releases
+  releaseType: release

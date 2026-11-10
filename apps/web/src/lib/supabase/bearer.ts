@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/env";
+import { LimitError } from "@/lib/usage";
 
 export class HttpError extends Error {
   constructor(
@@ -33,7 +34,7 @@ export async function requireBearer(request: Request) {
 
 /** Turns thrown errors into JSON responses. */
 export function errorResponse(err: unknown): Response {
-  if (err instanceof HttpError) {
+  if (err instanceof HttpError || err instanceof LimitError) {
     return Response.json({ error: err.message }, { status: err.status });
   }
   console.error(err);
