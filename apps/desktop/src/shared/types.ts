@@ -130,6 +130,12 @@ export type DeepLink = { type: "start"; packId: string } | { type: "open" };
 /** Result of "Sign in with your browser", pushed from the main process. */
 export type AuthEvent = { user: UserInfo } | { error: string };
 
+/** A short status message from the main process, such as reading a share link. */
+export interface Notice {
+  kind: "working" | "done" | "error";
+  text: string;
+}
+
 export interface LinkBridge {
   auth: {
     getUser(): Promise<UserInfo | null>;
@@ -170,6 +176,8 @@ export interface LinkBridge {
     /** Returns (once) a deep link that arrived before the window was ready. */
     takePendingDeepLink(): Promise<DeepLink | null>;
     onAuth(listener: (event: AuthEvent) => void): () => void;
+    /** Status of work the main process does on its own (reading a share link). */
+    onNotice(listener: (notice: Notice) => void): () => void;
     /** Opens a page of the Link website in the default browser. */
     openWebsite(path: string): void;
   };

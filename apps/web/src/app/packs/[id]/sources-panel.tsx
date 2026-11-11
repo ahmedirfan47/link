@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useRef, useState, useTransition } from "react";
 import { SubmitButton, StateMessage } from "@/components/form-status";
 import { CrossIcon, FileIcon, LinkIcon, NoteIcon } from "@/components/icons";
@@ -23,6 +24,30 @@ function SourceIcon({ kind }: { kind: SourceSummary["kind"] }) {
 function size(chars: number): string {
   if (chars < 1000) return `${chars} characters`;
   return `${Math.round(chars / 1000)}k characters`;
+}
+
+function detail(s: SourceSummary): string {
+  if (s.status === "failed" && s.error) return s.error;
+  if (s.turns > 0) return `${SOURCE_KIND_LABELS[s.kind]} · ${s.turns} messages`;
+  return `${SOURCE_KIND_LABELS[s.kind]} · ${size(s.chars)}`;
+}
+
+/** Shown when the server could not read a share link: the desktop app can. */
+function DesktopFallback({ url }: { url: string }) {
+  return (
+    <div className="rounded-md border border-line bg-canvas px-3 py-2.5 text-sm">
+      <a href={url} className="btn-line">
+        Read it with the desktop app
+      </a>
+      <p className="hint mt-1.5">
+        The app opens the link like a browser, adds the chat here, and brings you back. No app yet?{" "}
+        <Link href="/download" className="underline underline-offset-2">
+          Download it
+        </Link>
+        .
+      </p>
+    </div>
+  );
 }
 
 function FileUpload({ packId, userId }: { packId: string; userId: string }) {
@@ -121,12 +146,20 @@ export function SourcesPanel({
             <li key={s.id} className="group -mx-2 flex items-start gap-2.5 rounded-md px-2 py-1.5 hover:bg-canvas">
               <SourceIcon kind={s.kind} />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold" title={s.title || s.uri || undefined}>
-                  {s.title || s.uri || "Untitled"}
-                </p>
-                <p className={`truncate text-xs ${s.status === "failed" ? "text-tally" : "text-muted"}`}>
-                  {s.status === "failed" && s.error ? s.error : `${SOURCE_KIND_LABELS[s.kind]} · ${size(s.chars)}`}
-                </p>
+                {s.turns > 0 ? (
+                  <Link
+                    href={`/packs/${packId}/sources/${s.id}`}
+                    className="block truncate text-sm font-semibold underline-offset-2 hover:underline"
+                    title={s.title || s.uri || undefined}
+                  >
+                    {s.title || s.uri || "Untitled"}
+                  </Link>
+                ) : (
+                  <p className="truncate text-sm font-semibold" title={s.title || s.uri || undefined}>
+                    {s.title || s.uri || "Untitled"}
+                  </p>
+                )}
+                <p className={`truncate text-xs ${s.status === "failed" ? "text-tally" : "text-muted"}`}>{detail(s)}</p>
               </div>
               <form action={deleteSource.bind(null, packId, s.id)}>
                 <SubmitButton className="btn-quiet h-6 px-1 opacity-0 group-hover:opacity-100 focus:opacity-100" pendingText="…">
@@ -167,8 +200,9 @@ export function SourcesPanel({
       {tab === "link" && (
         <form action={linkAction} className="space-y-2">
           <input name="url" type="url" required placeholder="https://" className="field" />
-          <p className="hint">A web page, or a ChatGPT or Claude share link.</p>
+          <p className="hint">A web page, or a ChatGPT or Claude share link. Shared chats are read directly from the page.</p>
           <StateMessage state={linkState} />
+          {linkState.desktopUrl && <DesktopFallback url={linkState.desktopUrl} />}
           <SubmitButton className="btn-line" pendingText="Importing…">
             Import
           </SubmitButton>

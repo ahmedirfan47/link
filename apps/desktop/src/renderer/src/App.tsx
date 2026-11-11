@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { DeepLink, PackSummary, Settings, UserInfo } from "../../shared/types";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import type { DeepLink, Notice, PackSummary, Settings, UserInfo } from "../../shared/types";
 import { ConsentPanel } from "./components/ConsentPanel";
 import { Home } from "./components/Home";
 import { LivePanel } from "./components/LivePanel";
@@ -16,6 +16,7 @@ export function App() {
   /** Pack the website asked us to start (link-app://start?pack=...). */
   const [requestedPack, setRequestedPack] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const sessionRef = useRef<LiveSession | null>(null);
 
   const applyLink = useCallback((link: DeepLink | null) => {
@@ -43,7 +44,9 @@ export function App() {
         setAuthError(event.error);
       }
     });
+    const offNotice = window.link.control.onNotice(setNotice);
     return () => {
+      offNotice();
       offDismiss();
       offHotkey();
       offLink();
@@ -77,6 +80,38 @@ export function App() {
     window.link.overlay.hide();
   }
 
+  const banner = notice && (
+    <div
+      role="status"
+      className={`flex items-start gap-2 border-b px-4 py-2.5 text-sm ${
+        notice.kind === "error"
+          ? "border-tally/40 bg-tally/10 text-[#ffb3b5]"
+          : notice.kind === "done"
+            ? "border-go/40 bg-go/10 text-text"
+            : "border-line bg-raised text-text"
+      }`}
+    >
+      {notice.kind === "working" && <Spinner className="mt-0.5" />}
+      <p className="flex-1">{notice.text}</p>
+      {notice.kind !== "working" && (
+        <button type="button" className="text-text-2 hover:text-text" onClick={() => setNotice(null)}>
+          Close
+        </button>
+      )}
+    </div>
+  );
+
+  /** Keeps the screen at full height with the banner above it. */
+  function withBanner(content: ReactNode) {
+    if (!banner) return content;
+    return (
+      <div className="flex h-full flex-col">
+        {banner}
+        <div className="min-h-0 flex-1">{content}</div>
+      </div>
+    );
+  }
+
   if (user === undefined || !settings) {
     return (
       <div className="grid h-full place-items-center">
@@ -85,7 +120,9 @@ export function App() {
     );
   }
 
-  if (!user) return <SignIn onSignedIn={setUser} serverUrl={settings.serverUrl} authError={authError} />;
+  if (!user) {
+    return withBanner(<SignIn onSignedIn={setUser} serverUrl={settings.serverUrl} authError={authError} />);
+  }
 
   if (snap.phase === "ended") return <SummaryPanel snap={snap} serverUrl={settings.serverUrl} onDone={backHome} />;
 
@@ -114,7 +151,7 @@ export function App() {
     );
   }
 
-  return (
+  return withBanner(
     <Home
       user={user}
       settings={settings}
@@ -124,6 +161,6 @@ export function App() {
       onSignOut={() => {
         void window.link.auth.signOut().then(() => setUser(null));
       }}
-    />
+    />,
   );
 }

@@ -186,3 +186,22 @@ export function PlayIcon(p: IconProps) {
     </Svg>
   );
 }
+
+/** Ask: a speech bubble with a question tail. */
+export function AskIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M2.5 3.5h11v7.5H8l-3 2.5V11H2.5z" />
+      <path d="M6.5 6a1.5 1.5 0 1 1 2 1.4c-.3.1-.5.4-.5.7v.2" />
+    </Svg>
+  );
+}
+
+/** Send: an arrow pointing up. */
+export function SendIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <path d="M8 13V3M4 7l4-4 4 4" />
+    </Svg>
+  );
+}

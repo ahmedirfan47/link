@@ -11,9 +11,10 @@ import {
 } from "electron";
 import electronUpdater from "electron-updater";
 import { DESKTOP_SCHEME, HOTKEYS } from "../shared/config";
-import type { AuthEvent, DeepLink, OverlayState, SessionEndInput, Settings } from "../shared/types";
+import type { AuthEvent, DeepLink, Notice, OverlayState, SessionEndInput, Settings } from "../shared/types";
 import * as api from "./api";
 import * as auth from "./auth";
+import { readShare } from "./share";
 import { getSettings, setSettings } from "./settings";
 
 let control: BrowserWindow | null = null;
@@ -64,6 +65,11 @@ async function handleLink(raw: string): Promise<void> {
   focusControl();
   const action = url.hostname || url.pathname.replace(/^\/+/, "");
 
+  if (action === "read-share") {
+    void importShare(url.searchParams.get("pack") ?? "", url.searchParams.get("url") ?? "");
+    return;
+  }
+
   if (action === "auth") {
     const code = url.searchParams.get("code") ?? "";
     const result = await auth.completeBrowserSignIn(getSettings().serverUrl, code);
@@ -85,6 +91,50 @@ async function handleLink(raw: string): Promise<void> {
   // still loading is not lost. The event just tells a ready window to take it.
   pendingDeepLink = link;
   control?.webContents.send("control:deep-link", link);
+}
+
+function notify(notice: Notice): void {
+  control?.webContents.send("control:notice", notice);
+}
+
+let importing = false;
+
+/**
+ * link-app://read-share?pack=<id>&url=<share link>: the website could not read a
+ * share link, so the app opens it like a browser and saves the chat to the pack.
+ */
+async function importShare(packId: string, shareUrl: string): Promise<void> {
+  if (!/^[0-9a-f-]{36}$/i.test(packId) || !shareUrl) return;
+  if (importing) {
+    notify({ kind: "error", text: "Already reading a chat. Wait for it to finish." });
+    return;
+  }
+  importing = true;
+  try {
+    if (!(await auth.getUser())) {
+      notify({ kind: "error", text: "Sign in to the app first, then use the button on the website again." });
+      return;
+    }
+    notify({ kind: "working", text: "Reading the shared chat…" });
+    const read = await readShare(shareUrl);
+    if (!read.ok) {
+      notify({ kind: "error", text: read.error });
+      return;
+    }
+    const saved = await api.addSharedChat(packId, {
+      url: shareUrl,
+      title: read.data.chat.title,
+      messages: read.data.chat.messages,
+    });
+    if (!saved.ok) {
+      notify({ kind: "error", text: saved.error });
+      return;
+    }
+    notify({ kind: "done", text: `Added “${saved.data.title}” (${saved.data.messages} messages) to the pack.` });
+    void shell.openExternal(`${getSettings().serverUrl}/packs/${packId}`);
+  } finally {
+    importing = false;
+  }
 }
 
 /* ------------------------------------------------------------------ */

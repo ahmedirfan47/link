@@ -17,6 +17,7 @@ export const USAGE_CAPS = {
   stt_tokens: { cap: 60, label: "transcription connections" },
   call_summaries: { cap: 20, label: "call summaries" },
   mcp_calls: { cap: 500, label: "connector requests" },
+  ask_messages: { cap: 100, label: "Ask questions" },
 } as const;
 
 export type UsageKind = keyof typeof USAGE_CAPS;

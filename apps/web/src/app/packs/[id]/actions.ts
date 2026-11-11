@@ -7,10 +7,13 @@ import { cueFromGapAnswer, generatePack } from "@/lib/ai";
 import {
   ExtractionError,
   MAX_SOURCE_CHARS,
+  ShareBlockedError,
   classifyUrl,
   extractFileText,
   extractUrlText,
+  readShareLink,
 } from "@/lib/extract";
+import { DESKTOP_SCHEME } from "@/lib/releases";
 import { requireUser } from "@/lib/supabase/server";
 import type { ActionState, PackRow } from "@/lib/rows";
 import { consume } from "@/lib/usage";
@@ -67,7 +70,32 @@ export async function addLink(packId: string, _prev: ActionState, formData: Form
     const { url, kind } = classifyUrl(String(formData.get("url") ?? ""));
     const { supabase, userId } = await loadPack(packId);
     await consume(userId, "link_imports");
-    const { title, text } = await extractUrlText(url, kind);
+
+    if (kind === "chatgpt_share" || kind === "claude_share") {
+      try {
+        const chat = await readShareLink(url, kind);
+        const { error } = await supabase.from("sources").insert({
+          pack_id: packId,
+          kind,
+          title: chat.title,
+          uri: url.toString(),
+          content_text: chat.text,
+          messages: chat.messages,
+          status: "ready",
+        });
+        if (error) return { error: error.message };
+        refresh(packId);
+        return { message: `Imported ${chat.messages.length} messages from “${chat.title.slice(0, 80)}”.` };
+      } catch (err) {
+        if (err instanceof ShareBlockedError) {
+          const desktopUrl = `${DESKTOP_SCHEME}://read-share?pack=${packId}&url=${encodeURIComponent(url.toString())}`;
+          return { error: err.message, desktopUrl };
+        }
+        throw err;
+      }
+    }
+
+    const { title, text } = await extractUrlText(url);
     const { error } = await supabase.from("sources").insert({
       pack_id: packId,
       kind,
@@ -353,6 +381,7 @@ export async function importChats(packId: string, storagePath: string, chatIds: 
     await consume(userId, "chat_imports");
 
     const { chatToText } = await import("@/lib/chat-export");
+    const { MAX_SHARE_MESSAGES } = await import("@link/core");
     const chosen = chats.filter((c) => ids.includes(c.id));
     if (chosen.length === 0) return { error: "Those chats were not found in the export." };
 
@@ -362,6 +391,7 @@ export async function importChats(packId: string, storagePath: string, chatIds: 
         kind: "chat_export",
         title: `${c.source === "chatgpt" ? "ChatGPT" : "Claude"}: ${c.title}`.slice(0, 300),
         content_text: chatToText(c).slice(0, MAX_SOURCE_CHARS),
+        messages: c.messages.slice(0, MAX_SHARE_MESSAGES),
         status: "ready",
       })),
     );

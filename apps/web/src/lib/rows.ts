@@ -32,13 +32,24 @@ export interface SourceRow {
   uri: string | null;
   storage_path: string | null;
   content_text: string | null;
+  /** Turns of a shared or imported chat, for the chat viewer. */
+  messages: { role: "user" | "assistant"; text: string }[] | null;
   status: SourceStatus;
   error: string | null;
   created_at: string;
 }
 
 /** Source list item without the (possibly large) extracted text. */
-export type SourceSummary = Omit<SourceRow, "content_text"> & { chars: number };
+export type SourceSummary = Omit<SourceRow, "content_text" | "messages"> & { chars: number; turns: number };
+
+export interface AskMessageRow {
+  id: string;
+  pack_id: string;
+  user_id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+}
 
 export interface CueRow {
   id: string;
@@ -136,4 +147,6 @@ export const SOURCE_KIND_LABELS: Record<SourceKind, string> = {
 export interface ActionState {
   error?: string;
   message?: string;
+  /** link-app:// link that lets the desktop app finish what the server could not. */
+  desktopUrl?: string;
 }

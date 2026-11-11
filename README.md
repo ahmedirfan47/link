@@ -7,7 +7,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how it works.
 ## Requirements
 - Node.js 22 or newer
 - The Supabase project `link` (schema in `supabase/migrations`)
-- An Anthropic API key
+- An xAI (Grok) API key
 - Windows 10/11 for the desktop app (Phase 2)
 
 ## Setup
@@ -20,6 +20,15 @@ npm test
 npm run dev
 ```
 3. Open http://localhost:3000
+
+## Tests
+```powershell
+npm test                                   # unit tests (packages/core)
+npx playwright install chromium            # once, for browser tests
+npm run test:e2e -w @link/web              # browser tests; starts a dev server on port 3100
+```
+Signed-in browser tests need a test account: set `E2E_EMAIL` and `E2E_PASSWORD` first.
+To test a deployed site instead, set `E2E_BASE_URL=https://your-site.vercel.app`.
 
 ## Structure
 - `apps/web` — Next.js dashboard: packs, sources, cue generation, gap questions, review, rehearsal

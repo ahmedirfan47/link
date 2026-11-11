@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { ConfirmButton } from "@/components/form-status";
-import { RehearseIcon, TrashIcon } from "@/components/icons";
+import { AskIcon, RehearseIcon, TrashIcon } from "@/components/icons";
 import { Page, PageHeader } from "@/components/page";
 import { plural } from "@/lib/format";
 import { requireUser } from "@/lib/supabase/server";
@@ -62,7 +62,11 @@ export default async function PackPage({ params }: { params: Promise<{ id: strin
   ]);
 
   const sources: SourceSummary[] = ((sourcesRes.data ?? []) as SourceRow[]).map(
-    ({ content_text, ...rest }) => ({ ...rest, chars: content_text?.length ?? 0 }),
+    ({ content_text, messages, ...rest }) => ({
+      ...rest,
+      chars: content_text?.length ?? 0,
+      turns: messages?.length ?? 0,
+    }),
   );
   const cues = (cuesRes.data ?? []) as CueRow[];
   const gaps = (gapsRes.data ?? []) as GapRow[];
@@ -92,6 +96,12 @@ export default async function PackPage({ params }: { params: Promise<{ id: strin
         actions={
           !firstRun && (
             <>
+              {sources.length > 0 && (
+                <Link href={`/packs/${pack.id}/ask`} className="btn-line">
+                  <AskIcon className="h-3.5 w-3.5" />
+                  Ask
+                </Link>
+              )}
               {rehearsable > 0 ? (
                 <Link href={`/packs/${pack.id}/rehearse`} className="btn-line">
                   <RehearseIcon className="h-3.5 w-3.5" />

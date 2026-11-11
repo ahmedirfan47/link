@@ -22,19 +22,22 @@ export function supabasePublishableKey(): string {
   );
 }
 
-export function anthropicApiKey(): string {
-  return required("ANTHROPIC_API_KEY", process.env.ANTHROPIC_API_KEY);
+/** Grok (xAI). Every AI feature uses it; the key never leaves the server. */
+export function xaiApiKey(): string {
+  return required("XAI_API_KEY", process.env.XAI_API_KEY);
 }
 
+/** Model that builds cue packs. */
 export function packModel(): string {
-  return process.env.LINK_MODEL_PACK?.trim() || "claude-sonnet-5-5";
+  return process.env.LINK_MODEL_PACK?.trim() || "grok-4.7";
 }
 
+/** Model for fast tasks: live fallback cues, grading, summaries and Ask. */
 export function liveModel(): string {
-  return process.env.LINK_MODEL_LIVE?.trim() || "claude-haiku-5-5";
+  return process.env.LINK_MODEL_LIVE?.trim() || "grok-4.7";
 }
 
-/** Optional. Needed to import JavaScript-heavy pages such as ChatGPT and Claude share links. */
+/** Optional. A fallback for pages a direct fetch cannot read (blocked or JavaScript-only). */
 export function firecrawlApiKey(): string | null {
   return process.env.FIRECRAWL_API_KEY?.trim() || null;
 }

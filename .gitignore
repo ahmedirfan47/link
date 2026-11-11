@@ -31,3 +31,8 @@ apps/desktop/out/
 apps/desktop/release/
 *.sqlite
 *.sqlite-journal
+
+# browser test output
+apps/web/playwright-report/
+apps/web/test-results/
+apps/web/playwright/.auth/

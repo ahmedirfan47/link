@@ -5,5 +5,6 @@
 export function safeNext(value: unknown, fallback = "/packs"): string {
   if (typeof value !== "string") return fallback;
   if (!value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return fallback;
-  return value.slice(0, 500);
+  // Long enough for OAuth sign-in requests coming back to /oauth/authorize.
+  return value.slice(0, 2000);
 }

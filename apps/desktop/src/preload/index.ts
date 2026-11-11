@@ -1,5 +1,14 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
-import type { AuthEvent, DeepLink, HotkeyName, LinkBridge, OverlayState, SessionEndInput, Settings } from "../shared/types";
+import type {
+  AuthEvent,
+  DeepLink,
+  HotkeyName,
+  LinkBridge,
+  Notice,
+  OverlayState,
+  SessionEndInput,
+  Settings,
+} from "../shared/types";
 
 /**
  * The only bridge between the windows and the main process.
@@ -47,6 +56,7 @@ const bridge: LinkBridge = {
     onDeepLink: (listener) => subscribe<DeepLink>("control:deep-link", listener),
     takePendingDeepLink: () => ipcRenderer.invoke("control:take-deep-link"),
     onAuth: (listener) => subscribe<AuthEvent>("control:auth", listener),
+    onNotice: (listener) => subscribe<Notice>("control:notice", listener),
     openWebsite: (path) => ipcRenderer.send("control:open-website", path),
   },
 };

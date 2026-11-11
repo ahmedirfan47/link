@@ -5,7 +5,14 @@ import { ConfirmButton, StateMessage, SubmitButton } from "@/components/form-sta
 import { CheckIcon } from "@/components/icons";
 import { ago } from "@/lib/format";
 import type { ActionState } from "@/lib/rows";
-import { createApiToken, deleteAccount, revokeApiToken, updatePassword, type TokenState } from "./actions";
+import {
+  createApiToken,
+  deleteAccount,
+  disconnectApp,
+  revokeApiToken,
+  updatePassword,
+  type TokenState,
+} from "./actions";
 
 export function PasswordForm({ highlight }: { highlight: boolean }) {
   const [state, action] = useActionState<ActionState, FormData>(updatePassword, {});
@@ -44,7 +51,38 @@ export interface TokenRow {
   last_used_at: string | null;
 }
 
-function CopyField({ value }: { value: string }) {
+export interface ConnectedApp {
+  clientId: string;
+  name: string;
+  connectedAt: string;
+  lastUsedAt: string | null;
+}
+
+/** Apps connected through "Connect" (OAuth), with a way to disconnect each. */
+export function ConnectedApps({ apps }: { apps: ConnectedApp[] }) {
+  if (apps.length === 0) return <p className="text-sm text-muted">No apps connected yet.</p>;
+  return (
+    <ul className="divide-y divide-line border-y border-line">
+      {apps.map((a) => (
+        <li key={a.clientId} className="flex items-center gap-4 py-2.5 text-sm">
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">{a.name}</p>
+            <p className="text-xs text-muted">
+              Connected {ago(a.connectedAt)} · {a.lastUsedAt ? `last used ${ago(a.lastUsedAt)}` : "not used yet"}
+            </p>
+          </div>
+          <form action={disconnectApp.bind(null, a.clientId)}>
+            <ConfirmButton message={`Disconnect ${a.name}? It loses access to Link.`} pendingText="Disconnecting…">
+              Disconnect
+            </ConfirmButton>
+          </form>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function CopyField({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <div className="flex gap-2">

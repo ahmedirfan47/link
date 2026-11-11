@@ -6,13 +6,17 @@ export async function GET() {
   const { data: claims } = await supabase.auth.getClaims();
   if (!claims?.claims?.sub) return Response.json({ error: "Sign in first." }, { status: 401 });
 
-  const [packs, sources, cues, gaps, sessions, events] = await Promise.all([
+  const [packs, sources, cues, gaps, sessions, events, asks] = await Promise.all([
     supabase.from("packs").select("*").order("created_at"),
-    supabase.from("sources").select("id, pack_id, kind, title, uri, content_text, status, created_at").order("created_at"),
+    supabase
+      .from("sources")
+      .select("id, pack_id, kind, title, uri, content_text, messages, status, created_at")
+      .order("created_at"),
     supabase.from("cues").select("*").order("created_at"),
     supabase.from("gap_questions").select("*").order("created_at"),
     supabase.from("sessions").select("*").order("started_at"),
     supabase.from("session_events").select("session_id, t_ms, type, payload, created_at").order("created_at"),
+    supabase.from("ask_messages").select("pack_id, role, content, created_at").order("created_at"),
   ]);
 
   const body = {
@@ -24,6 +28,7 @@ export async function GET() {
     gap_questions: gaps.data ?? [],
     calls: sessions.data ?? [],
     call_events: events.data ?? [],
+    ask_messages: asks.data ?? [],
   };
   const date = new Date().toISOString().slice(0, 10);
   return new Response(JSON.stringify(body, null, 2), {

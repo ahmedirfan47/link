@@ -65,6 +65,14 @@ export async function startSession(packId: string, title: string): Promise<Resul
   );
 }
 
+/** Saves a chat the app read from a share link into a pack. */
+export function addSharedChat(
+  packId: string,
+  body: { url: string; title: string; messages: { role: "user" | "assistant"; text: string }[] },
+): Promise<Result<{ title: string; messages: number }>> {
+  return call(`/api/desktop/packs/${encodeURIComponent(packId)}/share`, { method: "POST", body });
+}
+
 export function endSession(id: string, body: SessionEndInput): Promise<Result<SessionEndResult>> {
   return call<SessionEndResult>(`/api/desktop/sessions/${encodeURIComponent(id)}/end`, { method: "POST", body });
 }

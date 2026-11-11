@@ -65,6 +65,19 @@ export async function revokeApiToken(tokenId: string): Promise<void> {
   revalidatePath("/settings");
 }
 
+/** Disconnects an app that connected with "Connect" (OAuth): all its tokens stop working. */
+export async function disconnectApp(clientId: string): Promise<void> {
+  if (!/^lkc_[A-Za-z0-9_-]{16,80}$/.test(clientId)) return;
+  const { userId } = await requireUser();
+  await createAdminClient()
+    .from("oauth_tokens")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("user_id", userId)
+    .eq("client_id", clientId)
+    .is("revoked_at", null);
+  revalidatePath("/settings");
+}
+
 /* ------------------------------------------------------------------ */
 /*  Delete account                                                     */
 /* ------------------------------------------------------------------ */

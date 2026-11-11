@@ -36,9 +36,10 @@ export default function PrivacyPage() {
       <ul>
         <li>Supabase: database, file storage and sign-in.</li>
         <li>Vercel: hosts the website and its server functions.</li>
-        <li>Anthropic (Claude): writes cues, checks rehearsal answers, drafts live answers and writes call summaries. Anthropic does not train its models on this data under its commercial terms.</li>
+        <li>xAI (Grok): writes cues, answers your questions in Ask, checks rehearsal answers, drafts live answers and writes call summaries. Under its API terms xAI does not train on this data and deletes it after 30 days.</li>
         <li>AssemblyAI: turns call audio into text in real time. Audio is streamed directly from your computer.</li>
-        <li>Firecrawl: fetches web pages and shared chat links you import, when used.</li>
+        <li>ChatGPT and Claude share pages: Link reads a shared chat directly from its public page, the same way your browser does. No OpenAI or Anthropic account or API is used.</li>
+        <li>Firecrawl: fetches web pages that cannot be read directly, when enabled.</li>
         <li>PostHog: product analytics and error reports on the website (pages visited, clicks, errors). It does not receive your pack content.</li>
         <li>Resend: sends account emails such as sign-up confirmation and password reset.</li>
       </ul>

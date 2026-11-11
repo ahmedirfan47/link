@@ -3,7 +3,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { supabasePublishableKey, supabaseUrl } from "@/lib/env";
 
 // Pages anyone can open, plus APIs that authenticate on their own:
-// /api/desktop with a bearer token, /api/mcp with a personal token in the URL.
+// /api/desktop with a bearer token, /api/mcp with an OAuth or personal token,
+// and the OAuth endpoints the Claude / ChatGPT connector calls server-to-server.
+// /oauth/authorize is NOT public: signed-out visitors sign in first.
 const PUBLIC_PATHS = [
   "/login",
   "/forgot",
@@ -14,6 +16,10 @@ const PUBLIC_PATHS = [
   "/api/desktop",
   "/api/mcp",
   "/ingest",
+  "/.well-known",
+  "/oauth/register",
+  "/oauth/token",
+  "/oauth/revoke",
 ];
 
 /**

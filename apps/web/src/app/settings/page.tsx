@@ -1,10 +1,49 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Page, PageHeader, Section } from "@/components/page";
+import { MCP_PATH } from "@/lib/oauth";
+import { currentOrigin } from "@/lib/origin";
 import { DESKTOP_SCHEME, installerUrl } from "@/lib/releases";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/supabase/server";
 import { USAGE_CAPS, capFor, todaysUsage, type UsageKind } from "@/lib/usage";
-import { ConnectorPanel, DeleteAccountForm, PasswordForm, type TokenRow } from "./forms";
+import {
+  ConnectedApps,
+  ConnectorPanel,
+  CopyField,
+  DeleteAccountForm,
+  PasswordForm,
+  type ConnectedApp,
+  type TokenRow,
+} from "./forms";
+
+/** Apps the user approved through "Connect", one row per app. */
+async function connectedApps(userId: string): Promise<ConnectedApp[]> {
+  const admin = createAdminClient();
+  const { data: tokens } = await admin
+    .from("oauth_tokens")
+    .select("client_id, created_at, last_used_at")
+    .eq("user_id", userId)
+    .is("revoked_at", null)
+    .gt("refresh_expires_at", new Date().toISOString());
+  if (!tokens || tokens.length === 0) return [];
+  const ids = [...new Set(tokens.map((t) => t.client_id as string))];
+  const { data: clients } = await admin.from("oauth_clients").select("client_id, client_name, redirect_uris").in("client_id", ids);
+
+  return ids.map((id) => {
+    const rows = tokens.filter((t) => t.client_id === id);
+    const client = clients?.find((c) => c.client_id === id);
+    const redirect = (client?.redirect_uris as string[] | undefined)?.[0] ?? "";
+    const fallback = /claude\.(ai|com)/.test(redirect) ? "Claude" : /chatgpt\.com|openai\.com/.test(redirect) ? "ChatGPT" : "App";
+    const used = rows.map((r) => r.last_used_at as string | null).filter((v): v is string => Boolean(v)).sort();
+    return {
+      clientId: id,
+      name: (client?.client_name as string | undefined) || fallback,
+      connectedAt: rows.map((r) => r.created_at as string).sort()[0]!,
+      lastUsedAt: used[used.length - 1] ?? null,
+    };
+  });
+}
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -18,13 +57,15 @@ export default async function SettingsPage({
   const { data: claims } = await supabase.auth.getClaims();
   const email = String(claims?.claims?.email ?? "");
 
-  const [{ data: tokenData }, usage] = await Promise.all([
+  const [{ data: tokenData }, usage, apps, origin] = await Promise.all([
     supabase
       .from("api_tokens")
       .select("id, name, token_hint, created_at, last_used_at")
       .is("revoked_at", null)
       .order("created_at", { ascending: false }),
     todaysUsage(userId).catch(() => ({}) as Record<string, number>),
+    connectedApps(userId).catch(() => [] as ConnectedApp[]),
+    currentOrigin(),
   ]);
   const tokens = (tokenData ?? []) as TokenRow[];
   const used = (Object.keys(USAGE_CAPS) as UsageKind[]).filter((k) => (usage[k] ?? 0) > 0);
@@ -54,16 +95,31 @@ export default async function SettingsPage({
 
         <Section
           title="Claude and ChatGPT connector"
-          description="Create a link and add it as a custom connector in Claude or ChatGPT. They can then list your packs, read cues, create packs and add notes or cues for you to review."
+          description="Connect Link to Claude or ChatGPT. They can then list your packs, read cues, create packs and add notes or cues for you to review."
         >
-          <ConnectorPanel tokens={tokens} />
-          <details className="mt-4 text-sm text-muted">
-            <summary className="cursor-pointer hover:text-ink">How to add it</summary>
-            <ol className="mt-2 list-decimal space-y-1 pl-5">
-              <li>Claude: Settings → Connectors → Add custom connector. Paste the link as the server URL.</li>
-              <li>ChatGPT: turn on developer mode in the connector settings, create a custom connector, paste the link and choose no authentication.</li>
-              <li>Then ask, for example: “Add my notes from this chat to my Northgate pack in Link.”</li>
+          <div className="max-w-[560px] space-y-3">
+            <p className="text-sm font-semibold">Connector URL</p>
+            <CopyField value={`${origin}${MCP_PATH}`} />
+            <ol className="list-decimal space-y-1 pl-5 text-sm text-muted">
+              <li>Claude: Settings → Connectors → Add custom connector. Paste the URL above and click Connect.</li>
+              <li>ChatGPT: in developer mode, create a connector with the URL above and choose OAuth.</li>
+              <li>You are sent back here to sign in and click Allow. No link to copy, nothing to paste afterwards.</li>
             </ol>
+          </div>
+
+          <div className="mt-6">
+            <p className="mb-2 text-sm font-semibold">Connected apps</p>
+            <ConnectedApps apps={apps} />
+          </div>
+
+          <details className="mt-6 text-sm">
+            <summary className="cursor-pointer text-muted hover:text-ink">
+              For apps without sign-in support: create a private link
+            </summary>
+            <div className="mt-4">
+              <ConnectorPanel tokens={tokens} />
+              <p className="hint mt-2">Paste the private link as the server URL and choose no authentication.</p>
+            </div>
           </details>
         </Section>
 
