@@ -5,7 +5,8 @@ import { expect, test, type Page } from "@playwright/test";
  * The main signed-in flows, in order, against a real test account:
  * create a pack, add sources (a note and a chat export), view the chat,
  * open Ask, connect an app through OAuth and call the MCP endpoint with it,
- * disconnect it, Pocket, sharing, calendar settings, and delete the pack.
+ * disconnect it, Pocket, sharing, calendar settings, the mock call, teams,
+ * interview mode, and delete the pack.
  *
  * Needs E2E_EMAIL and E2E_PASSWORD. Set E2E_ASK=1 to also send one question
  * to Grok (uses one Ask from the daily cap), and E2E_SHARE_URL to a public
@@ -289,6 +290,60 @@ test("calendar settings refuse unsafe addresses", async () => {
   await field.fill("https://127.0.0.1/basic.ics");
   await page.getByRole("button", { name: /Link calendar|Replace/ }).click();
   await expect(page.getByText("That address cannot be used.")).toBeVisible();
+});
+
+test("the mock call asks for approved cards first", async () => {
+  await page.goto(`${packUrl}/mock`);
+  await expect(page.getByText(/There are no approved questions in this pack yet/)).toBeVisible();
+});
+
+test("a team: create it, add a member, share the pack, see the playbook, delete it", async () => {
+  const teamName = `E2E team ${Date.now()}`;
+  await page.goto("/teams");
+  await page.getByLabel("Team name").fill(teamName);
+  await page.getByRole("button", { name: "Create team" }).click();
+  await expect(page.getByRole("heading", { name: teamName })).toBeVisible();
+  await expect(page.getByText("Answers that work")).toBeVisible();
+
+  await page.getByLabel("Add members").fill("e2e-member@example.com");
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.getByText("e2e-member@example.com", { exact: true })).toBeVisible();
+  const teamUrl = page.url();
+
+  await page.goto(packUrl);
+  const teamSelect = page.getByLabel("Team", { exact: true });
+  await teamSelect.selectOption({ label: teamName });
+  await page.locator("form").filter({ has: teamSelect }).getByRole("button", { name: "Save" }).click();
+  await page.waitForLoadState("networkidle");
+  await page.reload();
+  await expect(page.getByLabel("Team", { exact: true })).toHaveValue(/[0-9a-f-]{36}/);
+
+  await page.goto(teamUrl);
+  await expect(page.getByRole("link", { name: new RegExp(packTitle) })).toBeVisible();
+  await page.getByRole("button", { name: "Delete team" }).click();
+  await expect(page).toHaveURL(/\/teams$/);
+  await expect(page.getByText(teamName)).toHaveCount(0);
+});
+
+test("interview mode creates a pack from a job description and CV", async () => {
+  await page.goto("/packs/new");
+  await page.getByRole("link", { name: /Job interview\?/ }).click();
+  await page.getByLabel("Role").fill("Product Analyst");
+  await page.getByLabel("Company").fill("E2E Corp");
+  await page
+    .getByLabel("Job description")
+    .fill("We are hiring a Product Analyst to own dashboards, run A/B tests and work with product managers. Requirements: SQL, Python, experimentation, clear communication. Nice to have: dbt and Looker.");
+  await page
+    .getByLabel("CV text")
+    .fill(
+      "Ahmed Test. Data analyst at Example Ltd 2023-2026: built 30 dashboards in Looker, ran 12 A/B tests that lifted conversion 8%, automated weekly reporting with Python and dbt. BS in Artificial Intelligence. Skills: SQL, Python, statistics, stakeholder communication, experimentation design.",
+    );
+  await page.getByRole("button", { name: "Create interview pack" }).click();
+  await expect(page.getByRole("heading", { name: /Interview: Product Analyst at E2E Corp/ })).toBeVisible();
+  await expect(page.getByText("Job description", { exact: true })).toBeVisible();
+  await expect(page.getByText("My CV", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Delete pack" }).first().click();
+  await expect(page).toHaveURL(/\/packs$/);
 });
 
 test("delete the pack", async () => {

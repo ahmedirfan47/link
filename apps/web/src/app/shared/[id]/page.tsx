@@ -76,13 +76,15 @@ export default async function SharedPackPage({ params }: { params: Promise<{ id:
                 <ul className="divide-y divide-line border-y border-line">
                   {list.map((c) => (
                     <li key={c.id} className="py-3">
-                      <p className="font-semibold">{c.prompt}</p>
+                      <p dir="auto" className="font-semibold">
+                        {c.prompt}
+                      </p>
                       {c.bullets.length > 0 && (
                         <ul className="mt-1.5 space-y-1">
                           {c.bullets.map((b, i) => (
                             <li key={i} className="flex gap-2 text-base text-ink-2">
                               <span aria-hidden className="mt-[0.6em] h-1.5 w-1.5 shrink-0 rounded-full bg-ink-2" />
-                              <span>{b}</span>
+                              <span dir="auto">{b}</span>
                             </li>
                           ))}
                         </ul>

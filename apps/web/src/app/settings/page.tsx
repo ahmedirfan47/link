@@ -91,6 +91,21 @@ export default async function SettingsPage({
         </Section>
 
         <Section
+          title="Chrome extension"
+          description="Your cards in Chrome's side panel next to Google Meet. It follows the call through Meet's own captions, so it needs no audio and no install beyond Chrome."
+        >
+          <ol className="max-w-[560px] list-decimal space-y-1 pl-5 text-sm text-ink-2">
+            <li>
+              Build it once: <code className="font-mono text-xs">npm run build -w @link/extension</code>, then open{" "}
+              <code className="font-mono text-xs">chrome://extensions</code>, turn on Developer mode and choose Load
+              unpacked → <code className="font-mono text-xs">apps/extension/dist</code>.
+            </li>
+            <li>Stay signed in to Link in the same Chrome profile.</li>
+            <li>In a Meet call, turn on captions (press c) and click the Link icon in the toolbar.</li>
+          </ol>
+        </Section>
+
+        <Section
           title="Desktop app"
           description="Live calls run in the Windows app. It signs in with this account through your browser."
         >
@@ -105,8 +120,9 @@ export default async function SettingsPage({
         </Section>
 
         <Section
-          title="Claude and ChatGPT connector"
-          description="Connect Link to Claude or ChatGPT. They can then list your packs, read cues, create packs and add notes or cues for you to review."
+          className="scroll-mt-20"
+          title={<span id="connector">Claude and ChatGPT connector</span>}
+          description="Connect Link to Claude or ChatGPT. They can list and read your packs, add notes, and build a whole pack on your own plan; new cards wait for your review."
         >
           <div className="max-w-[560px] space-y-3">
             <p className="text-sm font-semibold">Connector URL</p>

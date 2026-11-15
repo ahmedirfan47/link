@@ -35,7 +35,7 @@ test("privacy page names Grok as the AI processor", async ({ page }) => {
   await expect(page.getByText(/Anthropic \(Claude\): writes cues/)).toHaveCount(0);
 });
 
-for (const path of ["/packs", "/calls", "/settings", "/packs/new", "/pocket", "/shared/00000000-0000-4000-8000-000000000000"]) {
+for (const path of ["/packs", "/calls", "/settings", "/packs/new", "/pocket", "/teams", "/packs/interview", "/shared/00000000-0000-4000-8000-000000000000"]) {
   test(`signed-out visit to ${path} goes to login and remembers the page`, async ({ page }) => {
     await page.goto(path);
     await expect(page).toHaveURL(/\/login\?next=/);
@@ -53,4 +53,15 @@ test("the connector consent page asks signed-out visitors to sign in first", asy
 test("unknown public pages show the not-found page", async ({ page }) => {
   const res = await page.goto("/download/this-page-does-not-exist");
   expect(res?.status()).toBe(404);
+});
+
+test("Pocket and extension APIs answer 401 in JSON when signed out", async ({ request }) => {
+  const list = await request.get("/api/pocket-packs", { maxRedirects: 0 });
+  expect(list.status()).toBe(401);
+  expect((await list.json()).error).toMatch(/Sign in/);
+  const card = await request.post("/api/pocket-card", {
+    maxRedirects: 0,
+    data: { action: "star", packId: "00000000-0000-4000-8000-000000000000", cueId: "00000000-0000-4000-8000-000000000000" },
+  });
+  expect(card.status()).toBe(401);
 });

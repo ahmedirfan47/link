@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { loadPackForViewer } from "@/lib/pack-access";
-import type { CueRow } from "@/lib/rows";
+import { pocketCards } from "@/lib/pocket";
 import { PocketClient, type PocketCue } from "./pocket-client";
 
 export const metadata: Metadata = { title: "Pocket", robots: { index: false } };
@@ -19,17 +19,7 @@ export default async function PocketPage({ params }: { params: Promise<{ id: str
   const access = await loadPackForViewer(id);
   if (!access) notFound();
 
-  const { data: cueData } = await access.db
-    .from("cues")
-    .select("id, direction, kind, prompt, variants, bullets, keywords, priority, useful_count")
-    .eq("pack_id", id)
-    .eq("approved", true)
-    .order("priority", { ascending: true })
-    .order("created_at", { ascending: true });
-  const cues = (cueData ?? []) as Pick<
-    CueRow,
-    "id" | "direction" | "kind" | "prompt" | "variants" | "bullets" | "keywords" | "priority" | "useful_count"
-  >[];
+  const cues = await pocketCards(access);
 
   return (
     <PocketClient
@@ -37,7 +27,7 @@ export default async function PocketPage({ params }: { params: Promise<{ id: str
       title={access.pack.title}
       language={access.pack.language}
       canEdit={access.role === "owner"}
-      cues={cues.map((c) => ({ ...c, useful: c.useful_count })) as PocketCue[]}
+      cues={cues as PocketCue[]}
     />
   );
 }

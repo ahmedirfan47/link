@@ -68,12 +68,29 @@ const QUESTION_STARTS = [
 
 const LEAD_INS = new Set(["and", "so", "but", "okay", "ok", "right", "well", "also", "now", "then", "um", "uh", "alright"]);
 
+/**
+ * Question words in Urdu (script and Roman) and Arabic (formal and Gulf or
+ * Levantine). Urdu puts them mid-sentence ("aapka revenue kitna hai"), so any
+ * position counts. Stored normalised, to compare with normalised words.
+ */
+const ANYWHERE_QUESTION_WORDS = new Set(
+  (
+    "kya kyun kyon kaise kese kaisa kaisi kab kahan kidhar kitna kitni kitne kaun kon konsa konsi " +
+    "کیا کیوں کیسے کیسا کیسی کب کہاں کتنا کتنی کتنے کون کونسا کونسی " +
+    "هل ماذا لماذا کیف متی این کم شو لیش وین ایش امتی"
+  )
+    .split(" ")
+    .map((w) => normalizeText(w)),
+);
+
 /** Rough check for whether a finished turn was a question. */
 export function looksLikeQuestion(text: string): boolean {
   const trimmed = text.trim();
   if (trimmed.endsWith("?") || trimmed.endsWith("؟")) return true;
   const normalized = normalizeText(trimmed);
-  if (splitWords(normalized).length < 3) return false;
+  const words = splitWords(normalized);
+  if (words.length < 3) return false;
+  if (words.some((w) => ANYWHERE_QUESTION_WORDS.has(w))) return true;
   // Look at the start of each sentence, since questions often follow a lead-in,
   // and skip spoken fillers such as "and", "so" or "okay" before the question word.
   return trimmed

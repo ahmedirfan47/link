@@ -23,6 +23,8 @@ export interface PackRow {
   meeting_at: string | null;
   /** The calendar event this pack was created from. */
   calendar_uid: string | null;
+  /** The team this pack is shared with, if any. */
+  team_id: string | null;
   created_at: string;
   updated_at: string;
 }

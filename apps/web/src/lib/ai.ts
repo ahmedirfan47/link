@@ -150,6 +150,21 @@ function packContext(pack: PackRow): string {
     .join("\n");
 }
 
+/**
+ * How to write cards for a mixed-language call. Live speech arrives as Urdu or
+ * Arabic script, romanised text, or English, often switching mid-sentence, so
+ * each card needs phrasings in all three for matching to work.
+ */
+export function languageRules(language: string): string {
+  if (language.startsWith("ur")) {
+    return `LANGUAGE: the call mixes Urdu and English (code-switching). For every card, "variants" must include English phrasings, Urdu in Urdu script (for example "آپ کی قیمت کیا ہے"), and Roman Urdu (for example "aap ki pricing kya hai"), plus mixed sentences ("aapka revenue kitna hai"). "keywords" may include the same term in both scripts. Write "prompt" in the language the question is most likely asked in and "bullets" in English unless the sources are mainly in Urdu.`;
+  }
+  if (language.startsWith("ar")) {
+    return `LANGUAGE: the call mixes Arabic and English (code-switching), Gulf or Levantine dialect as well as Modern Standard Arabic. For every card, "variants" must include English phrasings, Arabic script in both formal and spoken dialect (for example "كم السعر" and "شو السعر"), and Arabizi where common (for example "kam el se3r"), plus mixed sentences. "keywords" may include the same term in both scripts. Write "prompt" in the language the question is most likely asked in and "bullets" in English unless the sources are mainly in Arabic.`;
+  }
+  return "";
+}
+
 type SourceText = { title: string; kind: string; text: string };
 
 function sourceBlocks(sources: SourceText[], maxChars: number): string {
@@ -191,13 +206,30 @@ GAPS: up to 20 short, specific questions to ask the user, for facts the sources 
 
 Return JSON only.`;
 
+/**
+ * The same rules Grok follows, for an outside assistant (the user's own
+ * Claude or ChatGPT through the connector) that writes the cards instead.
+ */
+export function cardWritingGuide(pack: PackRow): string {
+  return [
+    PACK_SYSTEM.replace("Return JSON only.", "").trim(),
+    meetingRules(pack.meeting_type),
+    languageRules(pack.language),
+    `MEETING\n${packContext(pack)}`,
+    "HOW TO SAVE: call save_cards with the cards (direction, kind, prompt, variants, bullets, keywords, priority). " +
+      "Send them in batches of up to 40. Then call save_gaps with the open questions. The user reviews and approves them on the website.",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 /** Builds the full cue pack for a pack from its source texts. */
 export async function generatePack(pack: PackRow, sources: SourceText[]): Promise<GeneratedPack> {
   const out = await grokJson({
     schema: ModelPackSchema,
     name: "cue_pack",
     system: PACK_SYSTEM,
-    user: `MEETING\n${packContext(pack)}\n\nSOURCES\n${sourceBlocks(sources, MAX_PROMPT_SOURCE_CHARS)}\n\nBuild the cue pack now.`,
+    user: `MEETING\n${packContext(pack)}\n${meetingRules(pack.meeting_type)}\n${languageRules(pack.language)}\n\nSOURCES\n${sourceBlocks(sources, MAX_PROMPT_SOURCE_CHARS)}\n\nBuild the cue pack now.`,
     model: packModel(),
     effort: "medium",
     maxTokens: 64_000,
@@ -213,7 +245,7 @@ export async function cueFromGapAnswer(pack: PackRow, question: string, answer: 
     name: "cue",
     system:
       "You turn a person's answer into one Link cue card. direction=incoming, kind=question. prompt = the question. variants = 4-8 spoken ways the other side might ask it. bullets = at most 3 fragments under 12 words, using only facts in the answer. keywords = exact trigger words (names, figures), may be empty. priority 1-3. Return JSON only.",
-    user: `MEETING\n${packContext(pack)}\n\nQUESTION\n${question}\n\nMY ANSWER\n${answer}`,
+    user: `MEETING\n${packContext(pack)}\n${languageRules(pack.language)}\n\nQUESTION\n${question}\n\nMY ANSWER\n${answer}`,
     model: liveModel(),
     effort: "low",
     maxTokens: 4_000,
@@ -455,7 +487,7 @@ export async function draftCardsForQuestions(
     name: "missed_question_cards",
     system:
       "You write Link cue cards for questions a person was asked in a real conversation and was not ready for. One card per question, in the same order. direction=incoming, kind=question. prompt = the question, cleaned up. variants = 4-8 spoken ways someone might ask it. bullets = at most 3 fragments under 12 words, using only facts from the sources; if the sources do not answer it, give the approach (for example 'Share pilot results instead; send numbers after'). keywords = exact trigger words, may be empty. priority 1 (it was really asked). Return JSON only.",
-    user: `MEETING\n${packContext(pack)}\n\nQUESTIONS THEY ASKED\n${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}\n\nSOURCES\n${sourceBlocks(sources, MAX_POCKET_SOURCE_CHARS * 2) || "(none)"}`,
+    user: `MEETING\n${packContext(pack)}\n${languageRules(pack.language)}\n\nQUESTIONS THEY ASKED\n${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}\n\nSOURCES\n${sourceBlocks(sources, MAX_POCKET_SOURCE_CHARS * 2) || "(none)"}`,
     model: liveModel(),
     effort: "low",
     maxTokens: 12_000,
@@ -465,4 +497,82 @@ export async function draftCardsForQuestions(
     .map((c) => sanitizeGeneratedCue(c))
     .filter((c): c is GeneratedCue => c !== null)
     .map((c, i) => ({ ...c, direction: "incoming" as const, kind: "question" as const, prompt: c.prompt || questions[i] || c.prompt }));
+}
+
+/* ------------------------------------------------------------------ */
+/*  Mock conversation: a tough counterpart asks, grades and follows up */
+/* ------------------------------------------------------------------ */
+
+const MOCK_PERSONAS: Record<string, string> = {
+  investor:
+    "a sharp, sceptical seed or Series A investor (think a YC partner): direct, numbers-first, quick to probe weak market sizing, traction, competition, team and why now",
+  interview: "an experienced hiring manager: probes for specifics, evidence and ownership, and notices vague or rehearsed answers",
+  sales: "a busy, sceptical buyer: cares about price, ROI, risk, switching cost and proof",
+  client: "a demanding client: cares about delivery, timelines, quality and accountability",
+  partner: "a cautious potential partner: cares about fit, incentives, risk and who does what",
+  negotiation: "a firm negotiator: pushes on price and terms and tests your walk-away point",
+  viva: "a rigorous examiner: probes method, assumptions, limitations and contribution",
+  presentation: "a sharp audience member: asks the awkward question everyone is thinking",
+  other: "a tough, fair counterpart who probes for specifics",
+};
+
+export function mockPersona(meetingType: string): string {
+  return MOCK_PERSONAS[meetingType] ?? MOCK_PERSONAS.other!;
+}
+
+const MockTurnSchema = z.object({
+  score: z.number().int(),
+  covered: z.array(z.string()),
+  missed: z.array(z.string()),
+  tip: z.string(),
+  follow_up: z.string(),
+});
+export type MockTurn = { score: number; covered: string[]; missed: string[]; tip: string; followUp: string };
+
+/**
+ * One turn of a mock conversation. The persona grades the answer against the
+ * prepared points and, on the first answer only, asks one follow-up that
+ * presses on the weakest part.
+ */
+export async function mockTurn(
+  pack: PackRow,
+  question: string,
+  bullets: string[],
+  answer: string,
+  allowFollowUp: boolean,
+): Promise<MockTurn> {
+  const out = await grokJson({
+    schema: MockTurnSchema,
+    name: "mock_turn",
+    system:
+      `You are ${mockPersona(pack.meeting_type)}, in a mock ${MEETING_TYPE_LABELS[pack.meeting_type].toLowerCase()} used for practice. ` +
+      "Grade the person's spoken answer. score: 0-100 for substance, specifics and confidence (a real counterpart's judgement, not politeness). " +
+      "covered: prepared points they made. missed: prepared points or obvious facts they left out. tip: one direct sentence on how to answer better. " +
+      (allowFollowUp
+        ? "follow_up: the single follow-up question you would ask next to press on the weakest or vaguest part, spoken naturally, under 25 words; empty string if the answer was excellent. "
+        : "follow_up: empty string. ") +
+      "Reply in the language the person used. Return JSON only.",
+    user: `MEETING\n${packContext(pack)}\n\nQUESTION ASKED\n${question}\n\nTHEIR PREPARED POINTS\n${bullets.map((b) => `- ${b}`).join("\n") || "(none)"}\n\nTHEIR ANSWER\n${answer}`,
+    model: liveModel(),
+    effort: "low",
+    maxTokens: 3_000,
+  });
+  return {
+    score: Math.max(0, Math.min(100, out.score)),
+    covered: out.covered.slice(0, 6),
+    missed: out.missed.slice(0, 6),
+    tip: out.tip,
+    followUp: allowFollowUp ? out.follow_up.trim().slice(0, 300) : "",
+  };
+}
+
+/** Extra rules for a job-interview pack built from a job description and a CV. */
+export function meetingRules(meetingType: string): string {
+  if (meetingType === "interview") {
+    return "INTERVIEW: the sources include the job description and the candidate's CV. Cover: 'tell me about yourself', why this role and company, each main requirement in the job description, behavioural questions (answer bullets in STAR shorthand: situation, action, result with a number), technical questions for the role, weaknesses and gaps or short stints in the CV, salary expectations and notice period (give the approach, not invented figures). Bullets use only facts from the CV. Outgoing questions are smart questions to ask the interviewer about the team, the first 90 days and how success is measured.";
+  }
+  if (meetingType === "investor") {
+    return "INVESTOR: include the hardest questions a sceptical partner asks: market size and why now, traction and growth rate, unit economics (CAC, LTV, payback, margins), competition and moat, team and why you, use of funds and milestones, valuation and round terms, biggest risks.";
+  }
+  return "";
 }

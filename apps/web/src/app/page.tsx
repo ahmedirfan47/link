@@ -106,6 +106,30 @@ export default async function Home({
             </p>
           </div>
         </section>
+
+        <section className="border-t border-line bg-canvas">
+          <div className="mx-auto grid w-full max-w-[1080px] gap-10 px-6 py-16 lg:grid-cols-[280px_minmax(0,1fr)]">
+            <h2 className="text-2xl font-bold tracking-tight">Honest by design</h2>
+            <ul className="max-w-[62ch] space-y-3 text-base text-ink-2">
+              <li>
+                <span className="font-semibold text-ink">Visible, not hidden.</span> Link&apos;s cards show up in screen
+                shares like any other window. It is not built to be undetectable, and never will be.
+              </li>
+              <li>
+                <span className="font-semibold text-ink">A reminder before every call.</span> Link reminds you to tell
+                the others, with a line you can paste in the chat.
+              </li>
+              <li>
+                <span className="font-semibold text-ink">Your notes, not someone else&apos;s answers.</span> Cards come
+                from your own material: your deck, your CV, your numbers.
+              </li>
+              <li>
+                <span className="font-semibold text-ink">Nothing recorded.</span> No audio is stored, by Link or the
+                transcription service.
+              </li>
+            </ul>
+          </div>
+        </section>
       </main>
 
       <SiteFooter />

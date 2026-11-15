@@ -30,16 +30,32 @@ const STOP_WORDS = new Set(
     "have has had i you he she it we they me my your our their this that these those there here what which who whom " +
     "how why when where can could would should will shall may might must just like okay ok um uh yeah yes no not " +
     "please tell us me any some also very really then than if into out up down over more most much many " +
-    "kya hai hain ka ki ke ko se mein main aur ye yeh wo woh hum aap tum"
-  ).split(" "),
+    "kya hai hain ka ki ke ko se mein main aur ye yeh wo woh hum aap tum ap apka apki apke hamara hamari " +
+    "tha thi the raha rahi rahe kar karte karta karti ho hota hoti bhi to na nahi nahin koi kuch phir " +
+    // Urdu script (after folding)
+    "کیا ہے ہیں کا کی کے کو سے میں اور یہ وہ ہم اپ تم تھا تھی بھی تو نہیں کوئی کچھ پھر " +
+    // Arabic (after folding)
+    "فی من علی عن الی ما ماذا هل هو هی انا انت نحن هم ان کان کانت هذا هذه ذلک التی الذی مع او لا نعم قد لم لن"
+  )
+    .split(" ")
+    .map((w) => normalizeText(w)),
 );
 
 function meaningfulWords(text: string): string[] {
   return splitWords(text).filter((w) => !STOP_WORDS.has(w));
 }
 
-/** Light stemming so "pricing" matches "price" and "customers" matches "customer". */
+const ARABIC_LETTER = /[\u0600-\u06ff]/;
+
+/**
+ * Light stemming so "pricing" matches "price" and "customers" matches "customer".
+ * Arabic: drops the article and common attached prefixes ("والسعر" → "سعر").
+ */
 function stem(word: string): string {
+  if (ARABIC_LETTER.test(word)) {
+    if (word.length > 4) return word.replace(/^(وال|بال|کال|فال|لل|ال)/u, "") || word;
+    return word;
+  }
   if (word.length <= 4) return word;
   return word.replace(/(ings|ing|ies|es|s|ed|ly)$/u, "") || word;
 }

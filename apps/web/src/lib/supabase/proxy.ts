@@ -15,6 +15,12 @@ const PUBLIC_PATHS = [
   "/terms",
   "/api/desktop",
   "/api/mcp",
+  // Pocket and the Chrome extension: these check the sign-in cookie and answer 401 in JSON.
+  "/api/pocket-packs",
+  "/api/pocket-pack",
+  "/api/pocket-card",
+  "/api/pocket-miss",
+  "/api/pocket-answer",
   "/ingest",
   "/.well-known",
   "/oauth/register",

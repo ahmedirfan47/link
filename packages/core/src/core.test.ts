@@ -27,7 +27,7 @@ const fakeEmbedder: Embedder = {
 
 test("normalizeText strips punctuation and keeps other scripts", () => {
   assert.equal(normalizeText("  What's   your MRR?! "), "what s your mrr");
-  assert.equal(normalizeText("آپ کی آمدنی؟"), "آپ کی آمدنی");
+  assert.equal(normalizeText("آپ کی آمدنی؟"), "اپ کی امدنی");
 });
 
 test("RollingWindow keeps only the last N words, partial included", () => {

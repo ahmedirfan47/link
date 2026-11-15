@@ -7,7 +7,7 @@ const CONTACT = process.env.NEXT_PUBLIC_LINK_CONTACT_EMAIL || "privacy@example.c
 
 export default function PrivacyPage() {
   return (
-    <ProsePage title="Privacy policy" updated="15 November 2026">
+    <ProsePage title="Privacy policy" updated="16 November 2026">
       <p>
         This explains what Link stores, what it sends to other services, and what you can do about it. Link is run
         from Lahore, Pakistan. For privacy questions or requests, email{" "}
@@ -22,7 +22,8 @@ export default function PrivacyPage() {
         <li>Your account: email address and a hashed password (handled by Supabase Auth).</li>
         <li>Your packs: titles, goals, the sources you add (files, links, notes, chat imports) and the text taken from them, cues and your answers.</li>
         <li>Your calls: start and end time, the events during the call (which cue was shown, questions you were not ready for, drafted answers), and the summary if you asked for one.</li>
-        <li>How often you marked a card as helpful in Pocket.</li>
+        <li>Cards you marked as helpful in Pocket or the Chrome extension, and questions heard on a call that no card covered.</li>
+        <li>Teams you create or join: the team name and members&apos; email addresses. Members see the team&apos;s packs read-only, and the team playbook shows each member&apos;s helpful cards, missed questions and number of calls.</li>
         <li>The email addresses you shared a pack with. They can see that pack&apos;s approved cards, read-only, after signing in with that email; you can stop sharing at any time.</li>
         <li>Your calendar&apos;s private iCal address, if you link it. Link reads it to list your upcoming meetings and does not store the meetings, only packs you create from them (title, time, attendees and the invite text).</li>
         <li>Daily usage counters, so each account stays within fair limits.</li>
@@ -43,6 +44,7 @@ export default function PrivacyPage() {
         <li>AssemblyAI: turns call audio into text in real time. Audio is streamed directly from your computer, from the desktop app or from the Pocket window when you choose &ldquo;Call tab&rdquo;. It is not stored by Link.</li>
         <li>ChatGPT and Claude share pages: Link reads a shared chat directly from its public page, the same way your browser does. No OpenAI or Anthropic account or API is used.</li>
         <li>Firecrawl: fetches web pages that cannot be read directly, when enabled.</li>
+        <li>Google Meet captions: the Link Chrome extension reads the captions Meet shows you, in your browser, to find your cards. Link receives only the questions you choose to ask Grok and those no card covered.</li>
         <li>Your browser&apos;s speech recognition: when you press Listen in the Pocket window, your browser turns speech into text. In Chrome this is done by Google. Link receives only the text, keeps it in the window and never stores it.</li>
         <li>PostHog: product analytics and error reports on the website (pages visited, clicks, errors). It does not receive your pack content.</li>
         <li>Resend: sends account emails such as sign-up confirmation and password reset.</li>

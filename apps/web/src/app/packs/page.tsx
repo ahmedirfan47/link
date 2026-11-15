@@ -25,21 +25,46 @@ interface SharedPack {
   title: string;
   meeting_type: PackRow["meeting_type"];
   counterpart: string;
+  team_id: string | null;
+  via?: string | null;
 }
 
-/** Packs teammates shared with this user. Rows come through RLS (own email only); titles through the admin client. */
-async function sharedWithMe(supabase: Awaited<ReturnType<typeof requireUser>>["supabase"], email: string) {
-  if (!email) return [] as SharedPack[];
-  const { data: shares } = await supabase.from("pack_shares").select("pack_id").eq("email", email);
+/**
+ * Packs shared with this user: by email (pack_shares rows, visible through RLS
+ * for their own email only) and through teams they belong to. Titles come
+ * through the admin client after membership is known.
+ */
+async function sharedWithMe(
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
+  email: string,
+  userId: string,
+) {
+  const [{ data: shares }, { data: teams }] = await Promise.all([
+    email ? supabase.from("pack_shares").select("pack_id").eq("email", email) : Promise.resolve({ data: [] }),
+    supabase.from("teams").select("id, name"),
+  ]);
   const ids = [...new Set((shares ?? []).map((s) => s.pack_id as string))];
-  if (ids.length === 0) return [] as SharedPack[];
-  const { data } = await createAdminClient()
-    .from("packs")
-    .select("id, title, meeting_type, counterpart")
-    .in("id", ids)
-    .neq("status", "archived")
-    .order("updated_at", { ascending: false });
-  return (data ?? []) as SharedPack[];
+  const teamIds = (teams ?? []).map((t) => t.id as string);
+  if (ids.length === 0 && teamIds.length === 0) return [] as SharedPack[];
+  const admin = createAdminClient();
+  const [{ data: direct }, { data: viaTeam }] = await Promise.all([
+    ids.length
+      ? admin.from("packs").select("id, title, meeting_type, counterpart, team_id").in("id", ids).neq("status", "archived")
+      : Promise.resolve({ data: [] }),
+    teamIds.length
+      ? admin
+          .from("packs")
+          .select("id, title, meeting_type, counterpart, team_id")
+          .in("team_id", teamIds)
+          .neq("user_id", userId)
+          .neq("status", "archived")
+      : Promise.resolve({ data: [] }),
+  ]);
+  const teamName = new Map((teams ?? []).map((t) => [t.id as string, t.name as string]));
+  const seen = new Set<string>();
+  return [...((direct ?? []) as SharedPack[]), ...((viaTeam ?? []) as SharedPack[])]
+    .filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)))
+    .map((p) => ({ ...p, via: p.team_id && teamIds.includes(p.team_id) ? (teamName.get(p.team_id) ?? null) : null }));
 }
 
 /** The linked calendar's next meetings, or null when no calendar is linked. */
@@ -76,13 +101,13 @@ async function meetingsFor(
 }
 
 export default async function PacksPage() {
-  const { supabase } = await requireUser();
+  const { supabase, userId } = await requireUser();
   const { data: claims } = await supabase.auth.getClaims();
   const email = String(claims?.claims?.email ?? "").toLowerCase();
   const [packsRes, cuesRes, shared] = await Promise.all([
     supabase.from("packs").select("*").neq("status", "archived").order("updated_at", { ascending: false }),
     supabase.from("cues").select("pack_id, approved"),
-    sharedWithMe(supabase, email).catch(() => [] as SharedPack[]),
+    sharedWithMe(supabase, email, userId).catch(() => [] as SharedPack[]),
   ]);
   const packs = (packsRes.data ?? []) as PackRow[];
   const calendar = await meetingsFor(supabase, email, packs);
@@ -168,7 +193,7 @@ export default async function PacksPage() {
                   <p className="truncate font-semibold">{p.title}</p>
                   <p className="truncate text-sm text-muted">
                     {MEETING_TYPE_LABELS[p.meeting_type]}
-                    {p.counterpart ? ` · ${p.counterpart}` : ""} · read-only
+                    {p.counterpart ? ` · ${p.counterpart}` : ""} · {p.via ? `team ${p.via}` : "read-only"}
                   </p>
                 </Link>
               </li>

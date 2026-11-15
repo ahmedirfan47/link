@@ -57,6 +57,10 @@ test("looksLikeQuestion", () => {
   assert.ok(looksLikeQuestion("tell me about the team"));
   assert.ok(!looksLikeQuestion("That makes sense, thanks."));
   assert.ok(!looksLikeQuestion("yes"));
+  assert.ok(looksLikeQuestion("aapka monthly revenue kitna hai"));
+  assert.ok(looksLikeQuestion("آپ کی ٹیم میں کتنے لوگ ہیں"));
+  assert.ok(looksLikeQuestion("كيف تخططون للنمو هنا"));
+  assert.ok(looksLikeQuestion("شو خطتكم للسوق السعودي"));
 });
 
 test("their question surfaces the matching cue while they are still talking", async () => {

@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { AiError, answerFromSources } from "@/lib/ai";
-import { loadPackForViewer } from "@/lib/pack-access";
+import { packAccessFromCookies } from "@/lib/pack-access";
+import { logMiss } from "@/lib/pocket";
 import type { CueRow } from "@/lib/rows";
-import { createClient } from "@/lib/supabase/server";
 import { LimitError, consume } from "@/lib/usage";
 
 /**
@@ -16,23 +16,22 @@ export const maxDuration = 60;
 const Body = z.object({
   packId: z.uuid(),
   question: z.string().trim().min(3).max(500),
+  source: z.enum(["pocket", "extension"]).default("pocket"),
 });
 
 const MAX_SOURCES = 20;
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: claims } = await supabase.auth.getClaims();
-  if (!claims?.claims?.sub) return Response.json({ error: "Sign in again." }, { status: 401 });
-
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "Type or say the question first." }, { status: 400 });
 
-  const access = await loadPackForViewer(parsed.data.packId);
+  const access = await packAccessFromCookies(parsed.data.packId);
+  if (access === "signed-out") return Response.json({ error: "Sign in to Link first." }, { status: 401 });
   if (!access) return Response.json({ error: "Pack not found." }, { status: 404 });
 
   try {
     await consume(access.userId, "live_fallbacks");
+    void logMiss(access, parsed.data.question, parsed.data.source).catch(() => undefined);
     const [{ data: sourceRows }, { data: cueRows }] = await Promise.all([
       access.db
         .from("sources")

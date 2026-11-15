@@ -3,7 +3,7 @@
 import { looksLikeQuestion, searchCues } from "@link/core";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { captureCallTab, startTranscriber, type LiveTranscriber } from "@/lib/live-audio";
-import { hideCard, markUseful, saveAnswerAsCard } from "./actions";
+import { hideCard, markUseful, recordMiss, saveAnswerAsCard } from "./actions";
 
 export interface PocketCue {
   id: string;
@@ -67,7 +67,21 @@ const HOLD_MS = 6000;
 const LANGS = [
   { id: "en-US", label: "EN", stt: "en" },
   { id: "ur-PK", label: "UR", stt: "ur-en" },
+  { id: "ar-SA", label: "AR", stt: "ar-en" },
 ] as const;
+
+/** The line users can paste into the meeting chat, so everyone knows. */
+export const CONSENT_MESSAGE =
+  "Quick note before we start: I use an AI assistant that takes notes during calls. Is that okay with you?";
+const CONSENT_KEY = "link.consent.v1";
+
+function consentGiven(): boolean {
+  try {
+    return window.localStorage.getItem(CONSENT_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 function lastWords(text: string, n: number): string {
   const words = text.trim().split(/\s+/);
@@ -95,19 +109,21 @@ function CueCard({
     <li className={`group rounded-md border px-3 py-2 ${highlight ? "border-marker bg-marker-soft" : "border-line bg-surface"}`}>
       <div className="flex items-start gap-2">
         <button type="button" onClick={onToggle} className="min-w-0 flex-1 text-left" aria-expanded={open}>
-          <span className="block text-sm font-semibold leading-snug">{cue.prompt}</span>
+          <span dir="auto" className="block text-sm font-semibold leading-snug">
+            {cue.prompt}
+          </span>
         </button>
-        {canEdit && (
-          <span className="flex shrink-0 gap-0.5">
-            <button
-              type="button"
-              onClick={() => onUseful(cue)}
-              className="rounded px-1 text-xs text-muted hover:bg-sunken hover:text-ink"
-              title="This card helped"
-              aria-label={`This card helped (${cue.useful})`}
-            >
-              ★{cue.useful > 0 ? ` ${cue.useful}` : ""}
-            </button>
+        <span className="flex shrink-0 gap-0.5">
+          <button
+            type="button"
+            onClick={() => onUseful(cue)}
+            className="rounded px-1 text-xs text-muted hover:bg-sunken hover:text-ink"
+            title="This card helped"
+            aria-label={`This card helped (${cue.useful})`}
+          >
+            ★{cue.useful > 0 ? ` ${cue.useful}` : ""}
+          </button>
+          {canEdit && (
             <button
               type="button"
               onClick={() => onHide(cue)}
@@ -117,15 +133,15 @@ function CueCard({
             >
               ✕
             </button>
-          </span>
-        )}
+          )}
+        </span>
       </div>
       {open && cue.bullets.length > 0 && (
         <ul className="mt-1.5 space-y-1">
           {cue.bullets.map((b, i) => (
             <li key={i} className="flex gap-2 text-base leading-snug">
               <span aria-hidden className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full bg-ink" />
-              <span>{b}</span>
+              <span dir="auto">{b}</span>
             </li>
           ))}
         </ul>
@@ -154,7 +170,9 @@ export function PocketClient({
   const [source, setSource] = useState<Source>("mic");
   const [listening, setListening] = useState(false);
   const [starting, setStarting] = useState(false);
-  const [lang, setLang] = useState<string>(language.startsWith("ur") ? "ur-PK" : "en-US");
+  const [lang, setLang] = useState<string>(
+    language.startsWith("ur") ? "ur-PK" : language.startsWith("ar") ? "ar-SA" : "en-US",
+  );
   const [heard, setHeard] = useState("");
   const [lastSentence, setLastSentence] = useState("");
   const [listenError, setListenError] = useState<string | null>(null);
@@ -165,6 +183,9 @@ export function PocketClient({
   const [asking, setAsking] = useState(false);
   const [askError, setAskError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [askConsent, setAskConsent] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const consentThisSession = useRef(false);
   const [, startAction] = useTransition();
 
   const recognitionRef = useRef<Recognition | null>(null);
@@ -212,8 +233,17 @@ export function PocketClient({
 
   /* -------------------------- listening ------------------------------ */
 
+  const missed = useRef<Set<string>>(new Set());
+
   function onFinalSentence(text: string) {
-    if (looksLikeQuestion(text)) setLastSentence(text.trim());
+    if (!looksLikeQuestion(text)) return;
+    const q = text.trim();
+    setLastSentence(q);
+    // Keep a record of questions no card covered, once each, for the pack and the team playbook.
+    if (searchCues(q, cues, { limit: 1, minScore: 0.3 }).length === 0 && !missed.current.has(q.toLowerCase())) {
+      missed.current.add(q.toLowerCase());
+      void recordMiss(packId, q);
+    }
   }
 
   function stopListening() {
@@ -315,6 +345,11 @@ export function PocketClient({
   }
 
   async function startListening(src = source, language = lang) {
+    // Honest by design: remind the user to tell the others before listening.
+    if (!consentThisSession.current && !consentGiven()) {
+      setAskConsent(true);
+      return;
+    }
     setListenError(null);
     setStarting(true);
     try {
@@ -531,6 +566,53 @@ export function PocketClient({
           </p>
         )}
         {listenError && <p className="mt-1.5 text-2xs text-tally">{listenError}</p>}
+        {askConsent && (
+          <div className="mt-2 rounded-md border border-line-strong bg-canvas px-2.5 py-2" role="dialog" aria-label="Tell the others">
+            <p className="text-xs font-semibold">Tell the people on the call you are using Link.</p>
+            <p className="mt-0.5 text-2xs text-muted">
+              It is polite, and in some places the law requires everyone to agree. Paste this in the meeting chat:
+            </p>
+            <p className="mt-1.5 rounded bg-surface px-2 py-1 text-2xs text-ink-2">{CONSENT_MESSAGE}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                className="btn-line h-6 px-2 text-2xs"
+                onClick={() => {
+                  void navigator.clipboard?.writeText(CONSENT_MESSAGE).then(() => setCopied(true));
+                }}
+              >
+                {copied ? "Copied" : "Copy message"}
+              </button>
+              <button
+                type="button"
+                className="btn h-6 px-2 text-2xs"
+                onClick={() => {
+                  consentThisSession.current = true;
+                  setAskConsent(false);
+                  void startListening();
+                }}
+              >
+                I&apos;ve told them, listen
+              </button>
+              <button
+                type="button"
+                className="btn-quiet h-6 px-1.5 text-2xs"
+                onClick={() => {
+                  try {
+                    window.localStorage.setItem(CONSENT_KEY, "1");
+                  } catch {
+                    /* storage unavailable */
+                  }
+                  consentThisSession.current = true;
+                  setAskConsent(false);
+                  void startListening();
+                }}
+              >
+                Don&apos;t remind me
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <main className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
@@ -555,7 +637,7 @@ export function PocketClient({
                   {answer.bullets.map((b, i) => (
                     <li key={i} className="flex gap-2 text-base leading-snug">
                       <span aria-hidden className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full bg-ink" />
-                      <span>{b}</span>
+                      <span dir="auto">{b}</span>
                     </li>
                   ))}
                 </ul>

@@ -1,0 +1,22 @@
+{
+  "name": "@link/extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Link for Chrome: your cue cards in a side panel next to Google Meet, matched from Meet's own captions.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test test/captions.test.ts"
+  },
+  "dependencies": {
+    "@link/core": "*"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.40",
+    "esbuild": "^0.25.0",
+    "typescript": "~5.9.3",
+    "tsx": "^4.20.0"
+  }
+}

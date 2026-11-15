@@ -450,3 +450,13 @@ export async function unsharePack(packId: string, shareId: string): Promise<void
   await supabase.from("pack_shares").delete().eq("id", shareId).eq("pack_id", packId);
   refresh(packId);
 }
+
+/** Shares the pack with one of the user's teams (read-only for members), or stops sharing. */
+export async function setPackTeam(packId: string, formData: FormData): Promise<void> {
+  const teamId = String(formData.get("teamId") ?? "");
+  if (teamId && !Uuid.safeParse(teamId).success) return;
+  const { supabase } = await loadPack(packId);
+  await supabase.from("packs").update({ team_id: teamId || null }).eq("id", packId);
+  refresh(packId);
+  revalidatePath("/teams");
+}

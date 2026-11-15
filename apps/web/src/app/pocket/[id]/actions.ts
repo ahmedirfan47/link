@@ -2,46 +2,49 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { sanitizeGeneratedCue } from "@link/core";
-import { requireUser } from "@/lib/supabase/server";
+import { loadPackForViewer } from "@/lib/pack-access";
+import { hideCard as hide, logMiss, saveCard, starCard } from "@/lib/pocket";
 
 /**
- * Pocket actions. They change the owner's own cards only: RLS refuses any
- * write to a pack the user does not own, so teammates cannot use them.
+ * Pocket actions for the web window. Anyone who can see the pack can star a
+ * card and log a missed question; only the owner can hide or add cards.
  */
 
 const Uuid = z.uuid();
 
+async function access(packId: string) {
+  if (!Uuid.safeParse(packId).success) throw new Error("Invalid pack.");
+  const a = await loadPackForViewer(packId);
+  if (!a) throw new Error("Pack not found.");
+  return a;
+}
+
+function message(err: unknown): string {
+  return err instanceof Error ? err.message : "Something went wrong.";
+}
+
 /** "This card helped": counted, and helpful cards rank higher next time. */
 export async function markUseful(packId: string, cueId: string): Promise<{ count?: number; error?: string }> {
-  if (!Uuid.safeParse(packId).success || !Uuid.safeParse(cueId).success) return { error: "Invalid card." };
-  const { supabase } = await requireUser();
-  const { data } = await supabase.from("cues").select("useful_count").eq("id", cueId).eq("pack_id", packId).maybeSingle();
-  if (!data) return { error: "Only the pack owner can mark cards." };
-  const count = (data.useful_count as number) + 1;
-  const { error } = await supabase
-    .from("cues")
-    .update({ useful_count: count, last_useful_at: new Date().toISOString() })
-    .eq("id", cueId);
-  if (error) return { error: error.message };
-  revalidatePath(`/packs/${packId}`);
-  return { count };
+  try {
+    if (!Uuid.safeParse(cueId).success) return { error: "Invalid card." };
+    const count = await starCard(await access(packId), cueId);
+    revalidatePath(`/packs/${packId}`);
+    return { count };
+  } catch (err) {
+    return { error: message(err) };
+  }
 }
 
 /** Hide a card that did not help: it stops being used live until approved again. */
 export async function hideCard(packId: string, cueId: string): Promise<{ error?: string }> {
-  if (!Uuid.safeParse(packId).success || !Uuid.safeParse(cueId).success) return { error: "Invalid card." };
-  const { supabase } = await requireUser();
-  const { data, error } = await supabase
-    .from("cues")
-    .update({ approved: false })
-    .eq("id", cueId)
-    .eq("pack_id", packId)
-    .select("id");
-  if (error) return { error: error.message };
-  if (!data || data.length === 0) return { error: "Only the pack owner can hide cards." };
-  revalidatePath(`/packs/${packId}`);
-  return {};
+  try {
+    if (!Uuid.safeParse(cueId).success) return { error: "Invalid card." };
+    await hide(await access(packId), cueId);
+    revalidatePath(`/packs/${packId}`);
+    return {};
+  } catch (err) {
+    return { error: message(err) };
+  }
 }
 
 /** Keep Grok's answer to an unprepared question as an approved card. */
@@ -50,24 +53,20 @@ export async function saveAnswerAsCard(
   question: string,
   bullets: string[],
 ): Promise<{ id?: string; error?: string }> {
-  if (!Uuid.safeParse(packId).success) return { error: "Invalid pack." };
-  const cue = sanitizeGeneratedCue({
-    direction: "incoming",
-    kind: "question",
-    prompt: question,
-    variants: [],
-    bullets,
-    keywords: [],
-    priority: 1,
-  });
-  if (!cue) return { error: "Nothing to save." };
-  const { supabase } = await requireUser();
-  const { data, error } = await supabase
-    .from("cues")
-    .insert({ pack_id: packId, ...cue, approved: true })
-    .select("id")
-    .single();
-  if (error || !data) return { error: "Only the pack owner can add cards." };
-  revalidatePath(`/packs/${packId}`);
-  return { id: data.id as string };
+  try {
+    const id = await saveCard(await access(packId), question, bullets);
+    revalidatePath(`/packs/${packId}`);
+    return { id };
+  } catch (err) {
+    return { error: message(err) };
+  }
+}
+
+/** A question was heard and no card covered it. */
+export async function recordMiss(packId: string, question: string): Promise<void> {
+  try {
+    await logMiss(await access(packId), question, "pocket");
+  } catch {
+    /* best effort */
+  }
 }

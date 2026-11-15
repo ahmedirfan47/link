@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { normalizeText } from "./text";
 import { searchCues } from "./search";
 
 const cues = [
@@ -71,4 +72,25 @@ test("cards marked helpful win near-ties but never match on usefulness alone", (
   ];
   assert.equal(searchCues("what's the burn rate", twins)[0]?.cue.id, "b");
   assert.deepEqual(searchCues("tell me about hiring", twins), []);
+});
+
+test("Urdu and Arabic spellings match after folding", () => {
+  const cues = [
+    { id: "u", prompt: "آپ کی قیمت کیا ہے؟", variants: ["pricing kya hai", "قیمت کتنی ہے"], keywords: [] },
+    { id: "a", prompt: "ما هي الأسعار؟", variants: ["كم السعر"], keywords: ["٢٠٢٦"] },
+    { id: "e", prompt: "Who is on your team?", variants: [], keywords: [] },
+  ];
+  // Arabic yeh/kaf in place of the Urdu letters still finds the Urdu card.
+  assert.equal(searchCues("آپ کي قيمت", cues)[0]?.cue.id, "u");
+  // Roman Urdu variant.
+  assert.equal(searchCues("aapki pricing kya hai bhai", cues)[0]?.cue.id, "u");
+  // Arabic without hamza, with the article attached, matches the Arabic card.
+  assert.equal(searchCues("كم الاسعار والسعر", cues)[0]?.cue.id, "a");
+  // Arabic-Indic digits match ASCII digits and vice versa.
+  assert.equal(searchCues("plan for 2026", cues)[0]?.cue.id, "a");
+});
+
+test("normalizeText folds accents and digits", () => {
+  assert.equal(normalizeText("Café ٢٠٢٦ ۲۰۲۶"), "cafe 2026 2026");
+  assert.equal(normalizeText("أسعارنا"), "اسعارنا");
 });

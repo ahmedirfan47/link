@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { ConfirmButton } from "@/components/form-status";
-import { AskIcon, RehearseIcon, TrashIcon } from "@/components/icons";
+import { AskIcon, MicIcon, RehearseIcon, TrashIcon } from "@/components/icons";
 import { Page, PageHeader } from "@/components/page";
 import { plural } from "@/lib/format";
 import { requireUser } from "@/lib/supabase/server";
@@ -21,7 +21,8 @@ import { GapsPanel } from "./gaps-panel";
 import { GenerateButton } from "./generate-panel";
 import { PocketButton } from "./pocket-button";
 import { LocalTime } from "@/components/local-time";
-import { SharePanel, type ShareRow } from "./share-panel";
+import { OwnAiPanel } from "./own-ai";
+import { SharePanel, type ShareRow, type TeamOption } from "./share-panel";
 import { SourcesPanel } from "./sources-panel";
 import { StartCallButton } from "./start-call-button";
 
@@ -47,7 +48,7 @@ export default async function PackPage({ params }: { params: Promise<{ id: strin
   if (!packData) notFound();
   const pack = packData as PackRow;
 
-  const [sourcesRes, cuesRes, gapsRes, sharesRes] = await Promise.all([
+  const [sourcesRes, cuesRes, gapsRes, sharesRes, teamsRes] = await Promise.all([
     supabase.from("sources").select("*").eq("pack_id", id).order("created_at", { ascending: true }),
     supabase
       .from("cues")
@@ -63,7 +64,9 @@ export default async function PackPage({ params }: { params: Promise<{ id: strin
       .eq("status", "open")
       .order("created_at", { ascending: true }),
     supabase.from("pack_shares").select("id, email").eq("pack_id", id).order("created_at", { ascending: true }),
+    supabase.from("teams").select("id, name").order("name", { ascending: true }),
   ]);
+  const teams = (teamsRes.data ?? []) as TeamOption[];
   const shares = (sharesRes.data ?? []) as ShareRow[];
 
   const sources: SourceSummary[] = ((sourcesRes.data ?? []) as SourceRow[]).map(
@@ -113,6 +116,12 @@ export default async function PackPage({ params }: { params: Promise<{ id: strin
                 <Link href={`/packs/${pack.id}/ask`} className="btn-line">
                   <AskIcon className="h-3.5 w-3.5" />
                   Ask
+                </Link>
+              )}
+              {rehearsable > 0 && (
+                <Link href={`/packs/${pack.id}/mock`} className="btn-line">
+                  <MicIcon className="h-3.5 w-3.5" />
+                  Mock call
                 </Link>
               )}
               {rehearsable > 0 ? (
@@ -198,7 +207,8 @@ export default async function PackPage({ params }: { params: Promise<{ id: strin
           </div>
           <aside className="space-y-10 lg:border-l lg:border-line lg:pl-8">
             <SourcesPanel packId={pack.id} userId={userId} sources={sources} layout="side" />
-            <SharePanel packId={pack.id} shares={shares} />
+            {sources.length > 0 && <OwnAiPanel packId={pack.id} title={pack.title} />}
+            <SharePanel packId={pack.id} shares={shares} teams={teams} teamId={pack.team_id} />
             <form action={deletePack.bind(null, pack.id)} className="border-t border-line pt-4">
               <ConfirmButton
                 message="Delete this pack, its sources and all its cues? Past calls stay in your history."

@@ -35,6 +35,18 @@ export function PackIcon(p: IconProps) {
   );
 }
 
+/** A team: two heads. */
+export function TeamIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <circle cx="6" cy="6" r="2.2" />
+      <circle cx="11" cy="6.5" r="1.8" />
+      <path d="M2.5 13c.4-2.2 1.8-3.4 3.5-3.4s3.1 1.2 3.5 3.4" />
+      <path d="M10 9.8c1.6 0 2.9 1 3.4 3.2" />
+    </Svg>
+  );
+}
+
 /** A call: a short waveform. */
 export function CallIcon(p: IconProps) {
   return (

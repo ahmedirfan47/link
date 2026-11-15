@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { ConfirmButton, StateMessage, SubmitButton } from "@/components/form-status";
 import type { ActionState } from "@/lib/rows";
-import { sharePack, unsharePack } from "./actions";
+import { setPackTeam, sharePack, unsharePack } from "./actions";
 
 export interface ShareRow {
   id: string;
@@ -11,7 +11,22 @@ export interface ShareRow {
 }
 
 /** Share the pack read-only with teammates by email. */
-export function SharePanel({ packId, shares }: { packId: string; shares: ShareRow[] }) {
+export interface TeamOption {
+  id: string;
+  name: string;
+}
+
+export function SharePanel({
+  packId,
+  shares,
+  teams,
+  teamId,
+}: {
+  packId: string;
+  shares: ShareRow[];
+  teams: TeamOption[];
+  teamId: string | null;
+}) {
   const [state, action] = useActionState<ActionState, FormData>(sharePack.bind(null, packId), {});
   return (
     <section>
@@ -20,7 +35,8 @@ export function SharePanel({ packId, shares }: { packId: string; shares: ShareRo
         <span className="font-mono text-xs text-muted">{shares.length}</span>
       </div>
       <p className="mb-3 text-xs text-muted">
-        Teammates can view the approved cards and use Pocket. They cannot change anything.
+        Teammates can view the approved cards, use Pocket and the Chrome extension, and star cards. They cannot change
+        anything.
       </p>
       {shares.length > 0 && (
         <ul className="mb-3 space-y-0.5">
@@ -39,6 +55,26 @@ export function SharePanel({ packId, shares }: { packId: string; shares: ShareRo
             </li>
           ))}
         </ul>
+      )}
+      {teams.length > 0 && (
+        <form action={setPackTeam.bind(null, packId)} className="mb-4 flex items-end gap-2">
+          <div className="min-w-0 flex-1">
+            <label htmlFor="share-team" className="field-label">
+              Team
+            </label>
+            <select id="share-team" name="teamId" defaultValue={teamId ?? ""} className="field">
+              <option value="">Not shared with a team</option>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <SubmitButton className="btn-line" pendingText="…">
+            Save
+          </SubmitButton>
+        </form>
       )}
       <form action={action} className="space-y-2">
         <label htmlFor="share-email" className="sr-only">

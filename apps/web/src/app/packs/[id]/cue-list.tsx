@@ -140,7 +140,7 @@ function CueRowView({ packId, cue }: { packId: string; cue: CueRow }) {
       <div className="min-w-0">
         <p className="text-sm text-muted">
           {label && <span className="mr-1.5 font-semibold text-ink-2">{label}</span>}
-          {cue.prompt}
+          <bdi dir="auto">{cue.prompt}</bdi>
           {!cue.approved && <span className="mark ml-2 text-2xs font-semibold text-ink">Needs review</span>}
         </p>
         {cue.bullets.length > 0 ? (
@@ -148,7 +148,9 @@ function CueRowView({ packId, cue }: { packId: string; cue: CueRow }) {
             {cue.bullets.map((b, i) => (
               <li key={i} className="flex gap-2.5 text-base leading-snug font-semibold">
                 <span className="mt-[0.6em] h-1 w-1 shrink-0 bg-ink-2" aria-hidden />
-                <span className={cue.kind === "number" ? "mark" : undefined}>{b}</span>
+                <span dir="auto" className={cue.kind === "number" ? "mark" : undefined}>
+                  {b}
+                </span>
               </li>
             ))}
           </ul>

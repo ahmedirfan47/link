@@ -14,7 +14,9 @@ const INSTRUCTIONS =
   "Link prepares the user for live conversations. A pack holds the material for one conversation and the cues " +
   "(likely questions with short answer bullets) shown during the call. Use list_packs to find a pack, get_pack to " +
   "read it, add_source to save useful material from this chat into a pack, and add_cue for specific questions and " +
-  "answers. New cues need the user's approval on the website before they are used live.";
+  "answers. To build a whole pack yourself (the user's own AI does the writing, not Link's): call get_writing_guide, " +
+  "then read_sources, write the cards following the guide, and save them with save_cards and save_gaps. " +
+  "New cues need the user's approval on the website before they are used live.";
 
 interface RpcRequest {
   jsonrpc: "2.0";
