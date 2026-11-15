@@ -228,6 +228,21 @@ test("connect an app with OAuth, call the MCP endpoint, then disconnect it", asy
   expect(after.status()).toBe(401);
 });
 
+test("the Pocket window opens for the pack and lists it", async () => {
+  const packId = packUrl.split("/").pop()!;
+  // No cues are approved in this pack, so the pack page hides the Pocket button
+  // and the Pocket window says what to do.
+  await page.goto(packUrl);
+  await expect(page.getByRole("button", { name: "Pocket" })).toHaveCount(0);
+
+  await page.goto(`/pocket/${packId}`);
+  await expect(page.getByText(/No approved cues in this pack yet/)).toBeVisible();
+  await expect(page.getByLabel("Search cues")).toBeVisible();
+
+  await page.goto("/pocket");
+  await expect(page.getByRole("link", { name: new RegExp(packTitle) })).toBeVisible();
+});
+
 test("delete the pack", async () => {
   await page.goto(packUrl);
   await page.getByRole("button", { name: "Delete pack" }).click();

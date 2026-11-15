@@ -35,7 +35,7 @@ test("privacy page names Grok as the AI processor", async ({ page }) => {
   await expect(page.getByText(/Anthropic \(Claude\): writes cues/)).toHaveCount(0);
 });
 
-for (const path of ["/packs", "/calls", "/settings", "/packs/new"]) {
+for (const path of ["/packs", "/calls", "/settings", "/packs/new", "/pocket"]) {
   test(`signed-out visit to ${path} goes to login and remembers the page`, async ({ page }) => {
     await page.goto(path);
     await expect(page).toHaveURL(/\/login\?next=/);

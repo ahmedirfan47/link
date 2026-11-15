@@ -205,3 +205,13 @@ export function SendIcon(p: IconProps) {
     </Svg>
   );
 }
+
+/** Pocket: a small window floating over a bigger one. */
+export function PocketIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="2" y="2.5" width="12" height="11" rx="1" />
+      <rect x="8" y="7.5" width="4.5" height="4.5" rx="0.5" fill="currentColor" stroke="none" />
+    </Svg>
+  );
+}

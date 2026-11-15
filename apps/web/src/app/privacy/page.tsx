@@ -7,7 +7,7 @@ const CONTACT = process.env.NEXT_PUBLIC_LINK_CONTACT_EMAIL || "privacy@example.c
 
 export default function PrivacyPage() {
   return (
-    <ProsePage title="Privacy policy" updated="10 November 2026">
+    <ProsePage title="Privacy policy" updated="15 November 2026">
       <p>
         This explains what Link stores, what it sends to other services, and what you can do about it. Link is run
         from Lahore, Pakistan. For privacy questions or requests, email{" "}
@@ -40,6 +40,7 @@ export default function PrivacyPage() {
         <li>AssemblyAI: turns call audio into text in real time. Audio is streamed directly from your computer.</li>
         <li>ChatGPT and Claude share pages: Link reads a shared chat directly from its public page, the same way your browser does. No OpenAI or Anthropic account or API is used.</li>
         <li>Firecrawl: fetches web pages that cannot be read directly, when enabled.</li>
+        <li>Your browser&apos;s speech recognition: when you press Listen in the Pocket window, your browser turns speech into text. In Chrome this is done by Google. Link receives only the text, keeps it in the window and never stores it.</li>
         <li>PostHog: product analytics and error reports on the website (pages visited, clicks, errors). It does not receive your pack content.</li>
         <li>Resend: sends account emails such as sign-up confirmation and password reset.</li>
       </ul>

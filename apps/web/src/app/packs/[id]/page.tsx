@@ -19,6 +19,7 @@ import { deletePack } from "../actions";
 import { CueList } from "./cue-list";
 import { GapsPanel } from "./gaps-panel";
 import { GenerateButton } from "./generate-panel";
+import { PocketButton } from "./pocket-button";
 import { SourcesPanel } from "./sources-panel";
 import { StartCallButton } from "./start-call-button";
 
@@ -122,6 +123,7 @@ export default async function PackPage({ params }: { params: Promise<{ id: strin
                   quiet
                 />
               )}
+              {approved > 0 && <PocketButton packId={pack.id} />}
               {cues.length > 0 && <StartCallButton packId={pack.id} disabled={approved === 0} />}
             </>
           )
