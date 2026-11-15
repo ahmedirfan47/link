@@ -68,7 +68,7 @@ export async function extractFileText(file: File): Promise<string> {
 }
 
 /** Blocks the server from being pointed at itself or the local network. */
-function isPrivateHost(hostname: string): boolean {
+export function isPrivateHost(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) {
     return true;

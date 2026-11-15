@@ -9,7 +9,9 @@ import {
   createApiToken,
   deleteAccount,
   disconnectApp,
+  removeCalendarFeed,
   revokeApiToken,
+  saveCalendarFeed,
   updatePassword,
   type TokenState,
 } from "./actions";
@@ -186,5 +188,50 @@ export function DeleteAccountForm({ email }: { email: string }) {
         </button>
       </div>
     </form>
+  );
+}
+
+/** Link a calendar by its private iCal address, so meetings can become packs. */
+export function CalendarForm({ linked }: { linked: string | null }) {
+  const [state, action] = useActionState<ActionState, FormData>(saveCalendarFeed, {});
+  return (
+    <div className="max-w-[520px] space-y-4">
+      {linked && (
+        <div className="flex items-center gap-3 rounded-md border border-line px-3 py-2">
+          <span className="min-w-0 flex-1 truncate font-mono text-xs text-ink-2">{linked}</span>
+          <form action={removeCalendarFeed}>
+            <ConfirmButton message="Unlink this calendar?" pendingText="…" className="btn-quiet h-7 px-2 text-xs">
+              Unlink
+            </ConfirmButton>
+          </form>
+        </div>
+      )}
+      <form action={action} className="space-y-3">
+        <div>
+          <label className="field-label" htmlFor="icsUrl">
+            {linked ? "Replace with a new address" : "Secret iCal address"}
+          </label>
+          <input
+            id="icsUrl"
+            name="icsUrl"
+            type="url"
+            required
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
+            className="field font-mono text-xs"
+          />
+          <p className="hint">
+            Google Calendar: Settings → your calendar → Integrate calendar → Secret address in iCal format. Outlook:
+            Settings → Calendar → Shared calendars → Publish a calendar → ICS. Link only reads it; anyone with this
+            address can see your calendar, so keep it private.
+          </p>
+        </div>
+        <StateMessage state={state} />
+        <SubmitButton className="btn-line" pendingText="Checking…">
+          {linked ? "Replace" : "Link calendar"}
+        </SubmitButton>
+      </form>
+    </div>
   );
 }

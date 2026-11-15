@@ -20,6 +20,8 @@ import { CueList } from "./cue-list";
 import { GapsPanel } from "./gaps-panel";
 import { GenerateButton } from "./generate-panel";
 import { PocketButton } from "./pocket-button";
+import { LocalTime } from "@/components/local-time";
+import { SharePanel, type ShareRow } from "./share-panel";
 import { SourcesPanel } from "./sources-panel";
 import { StartCallButton } from "./start-call-button";
 
@@ -45,7 +47,7 @@ export default async function PackPage({ params }: { params: Promise<{ id: strin
   if (!packData) notFound();
   const pack = packData as PackRow;
 
-  const [sourcesRes, cuesRes, gapsRes] = await Promise.all([
+  const [sourcesRes, cuesRes, gapsRes, sharesRes] = await Promise.all([
     supabase.from("sources").select("*").eq("pack_id", id).order("created_at", { ascending: true }),
     supabase
       .from("cues")
@@ -60,7 +62,9 @@ export default async function PackPage({ params }: { params: Promise<{ id: strin
       .eq("pack_id", id)
       .eq("status", "open")
       .order("created_at", { ascending: true }),
+    supabase.from("pack_shares").select("id, email").eq("pack_id", id).order("created_at", { ascending: true }),
   ]);
+  const shares = (sharesRes.data ?? []) as ShareRow[];
 
   const sources: SourceSummary[] = ((sourcesRes.data ?? []) as SourceRow[]).map(
     ({ content_text, messages, ...rest }) => ({
@@ -90,7 +94,15 @@ export default async function PackPage({ params }: { params: Promise<{ id: strin
         title={pack.title}
         meta={
           <>
-            <p>{meta}</p>
+            <p>
+              {meta}
+              {pack.meeting_at && (
+                <>
+                  {" · "}
+                  <LocalTime iso={pack.meeting_at} />
+                </>
+              )}
+            </p>
             {pack.goal && <p className="mt-1 text-ink-2">Goal: {pack.goal}</p>}
           </>
         }
@@ -186,6 +198,7 @@ export default async function PackPage({ params }: { params: Promise<{ id: strin
           </div>
           <aside className="space-y-10 lg:border-l lg:border-line lg:pl-8">
             <SourcesPanel packId={pack.id} userId={userId} sources={sources} layout="side" />
+            <SharePanel packId={pack.id} shares={shares} />
             <form action={deletePack.bind(null, pack.id)} className="border-t border-line pt-4">
               <ConfirmButton
                 message="Delete this pack, its sources and all its cues? Past calls stay in your history."

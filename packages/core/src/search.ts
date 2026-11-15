@@ -14,6 +14,8 @@ export interface SearchableCue {
   keywords: readonly string[];
   bullets?: readonly string[];
   priority?: number;
+  /** Times the user marked the card as helpful; helpful cards rank a little higher. */
+  useful?: number;
 }
 
 export interface SearchHit<T> {
@@ -91,8 +93,11 @@ export function searchCues<T extends SearchableCue>(
       const needle = normalizeText(k);
       return needle.length > 0 && haystack.includes(` ${needle} `);
     });
-    const score = Math.min(1, best + (keywordHit ? 0.45 : 0));
-    if (score >= minScore) hits.push({ cue, score });
+    const relevance = best + (keywordHit ? 0.45 : 0);
+    if (relevance < minScore) continue;
+    // Usefulness only breaks near-ties; it never makes an unrelated card match.
+    const boost = Math.min(0.1, (cue.useful ?? 0) * 0.02);
+    hits.push({ cue, score: Math.min(1, relevance + boost) });
   }
 
   hits.sort((a, b) => b.score - a.score || (a.cue.priority ?? 2) - (b.cue.priority ?? 2));

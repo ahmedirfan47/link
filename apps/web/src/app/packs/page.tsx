@@ -3,7 +3,10 @@ import Link from "next/link";
 import { PlusIcon } from "@/components/icons";
 import { Page, PageHeader } from "@/components/page";
 import { ago, plural } from "@/lib/format";
+import { CalendarFeedError, upcomingMeetings } from "@/lib/calendar-feed";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/supabase/server";
+import { UpcomingMeetings, type UpcomingMeeting } from "./upcoming";
 import { MEETING_TYPE_LABELS, type PackRow } from "@/lib/rows";
 
 export const metadata: Metadata = { title: "Packs" };
@@ -17,13 +20,72 @@ function readiness(approved: number, review: number): { text: string; ready: boo
   };
 }
 
+interface SharedPack {
+  id: string;
+  title: string;
+  meeting_type: PackRow["meeting_type"];
+  counterpart: string;
+}
+
+/** Packs teammates shared with this user. Rows come through RLS (own email only); titles through the admin client. */
+async function sharedWithMe(supabase: Awaited<ReturnType<typeof requireUser>>["supabase"], email: string) {
+  if (!email) return [] as SharedPack[];
+  const { data: shares } = await supabase.from("pack_shares").select("pack_id").eq("email", email);
+  const ids = [...new Set((shares ?? []).map((s) => s.pack_id as string))];
+  if (ids.length === 0) return [] as SharedPack[];
+  const { data } = await createAdminClient()
+    .from("packs")
+    .select("id, title, meeting_type, counterpart")
+    .in("id", ids)
+    .neq("status", "archived")
+    .order("updated_at", { ascending: false });
+  return (data ?? []) as SharedPack[];
+}
+
+/** The linked calendar's next meetings, or null when no calendar is linked. */
+async function meetingsFor(
+  supabase: Awaited<ReturnType<typeof requireUser>>["supabase"],
+  email: string,
+  packs: PackRow[],
+): Promise<{ meetings: UpcomingMeeting[]; error: string | null } | null> {
+  const { data: feed } = await supabase.from("calendar_feeds").select("ics_url").maybeSingle();
+  if (!feed) return null;
+  try {
+    const events = await upcomingMeetings(feed.ics_url as string, 10);
+    const byUid = new Map(packs.filter((p) => p.calendar_uid).map((p) => [p.calendar_uid!, p.id]));
+    return {
+      error: null,
+      meetings: events.slice(0, 8).map((e) => ({
+        uid: e.uid,
+        title: e.title,
+        start: e.start.toISOString(),
+        people: e.attendees
+          .filter((a) => a.email.toLowerCase() !== email && !/resource\.calendar/i.test(a.email))
+          .map((a) => a.name || a.email)
+          .slice(0, 4)
+          .join(", "),
+        packId: byUid.get(e.uid) ?? null,
+      })),
+    };
+  } catch (err) {
+    return {
+      meetings: [],
+      error: err instanceof CalendarFeedError ? err.message : "Could not read your calendar right now.",
+    };
+  }
+}
+
 export default async function PacksPage() {
   const { supabase } = await requireUser();
-  const [packsRes, cuesRes] = await Promise.all([
+  const { data: claims } = await supabase.auth.getClaims();
+  const email = String(claims?.claims?.email ?? "").toLowerCase();
+  const [packsRes, cuesRes, shared] = await Promise.all([
     supabase.from("packs").select("*").neq("status", "archived").order("updated_at", { ascending: false }),
     supabase.from("cues").select("pack_id, approved"),
+    sharedWithMe(supabase, email).catch(() => [] as SharedPack[]),
   ]);
   const packs = (packsRes.data ?? []) as PackRow[];
+  const calendar = await meetingsFor(supabase, email, packs);
 
   const counts = new Map<string, { approved: number; review: number }>();
   for (const c of (cuesRes.data ?? []) as { pack_id: string; approved: boolean }[]) {
@@ -47,6 +109,8 @@ export default async function PacksPage() {
           )
         }
       />
+
+      {calendar && <UpcomingMeetings meetings={calendar.meetings} error={calendar.error} />}
 
       {packs.length === 0 ? (
         <div className="max-w-[520px] border-t border-line pt-8">
@@ -87,6 +151,30 @@ export default async function PacksPage() {
             );
           })}
         </ul>
+      )}
+
+      {shared.length > 0 && (
+        <section className="mt-12" aria-labelledby="shared-heading">
+          <h2 id="shared-heading" className="mb-2 text-base font-bold">
+            Shared with you
+          </h2>
+          <ul className="divide-y divide-line border-y border-line">
+            {shared.map((p) => (
+              <li key={p.id}>
+                <Link
+                  href={`/shared/${p.id}`}
+                  className="-mx-3 block rounded-md px-3 py-3 transition-colors hover:bg-canvas"
+                >
+                  <p className="truncate font-semibold">{p.title}</p>
+                  <p className="truncate text-sm text-muted">
+                    {MEETING_TYPE_LABELS[p.meeting_type]}
+                    {p.counterpart ? ` · ${p.counterpart}` : ""} · read-only
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </Page>
   );

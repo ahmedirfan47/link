@@ -163,7 +163,14 @@ function CueRowView({ packId, cue }: { packId: string; cue: CueRow }) {
         )}
       </div>
       <div className="flex flex-col items-end gap-1">
-        <span className="font-mono text-2xs text-faint">{PRIORITY[cue.priority] ?? ""}</span>
+        <span className="font-mono text-2xs text-faint">
+          {cue.useful_count > 0 && (
+            <span className="mr-1.5 text-ink-2" title={`Marked helpful ${cue.useful_count} times in Pocket`}>
+              ★ {cue.useful_count}
+            </span>
+          )}
+          {PRIORITY[cue.priority] ?? ""}
+        </span>
         <div className="flex opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
           <button type="button" className="btn-quiet h-7 px-1.5" onClick={() => setEditing(true)}>
             <PencilIcon className="h-3.5 w-3.5" />

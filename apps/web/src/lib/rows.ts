@@ -19,6 +19,10 @@ export interface PackRow {
   goal: string;
   language: string;
   status: PackStatus;
+  /** When the meeting is, if the pack came from the calendar or was given a time. */
+  meeting_at: string | null;
+  /** The calendar event this pack was created from. */
+  calendar_uid: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -64,6 +68,9 @@ export interface CueRow {
   priority: number;
   approved: boolean;
   source_ids: string[];
+  /** Times the user marked this card as helpful in Pocket. */
+  useful_count: number;
+  last_useful_at: string | null;
   created_at: string;
   updated_at: string;
 }

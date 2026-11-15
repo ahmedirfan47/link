@@ -9,6 +9,7 @@ import { clockTime, dayLabel, duration, plural, stopwatch } from "@/lib/format";
 import { requireUser } from "@/lib/supabase/server";
 import { parseSummary, type SessionEventRow, type SessionRow } from "@/lib/rows";
 import { deleteCall } from "../actions";
+import { AnswerMissedButton } from "./answer-missed";
 
 export const metadata: Metadata = { title: "Call" };
 
@@ -129,15 +130,18 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
             title="Questions you were not ready for"
             description={
               call.packs
-                ? "They were added to the pack as cues that need an answer from you."
+                ? "They were added to the pack. Let Grok draft answers from your sources, then review them on the pack."
                 : "The pack for this call was deleted, so they were not saved anywhere."
             }
             actions={
               call.packs && (
-                <Link href={`/packs/${call.packs.id}`} className="btn-line">
-                  Answer them
-                  <ArrowRightIcon className="h-3.5 w-3.5" />
-                </Link>
+                <>
+                  <Link href={`/packs/${call.packs.id}`} className="btn-line">
+                    Open pack
+                    <ArrowRightIcon className="h-3.5 w-3.5" />
+                  </Link>
+                  <AnswerMissedButton callId={call.id} />
+                </>
               )
             }
           >

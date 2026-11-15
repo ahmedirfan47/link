@@ -22,6 +22,9 @@ export default function PrivacyPage() {
         <li>Your account: email address and a hashed password (handled by Supabase Auth).</li>
         <li>Your packs: titles, goals, the sources you add (files, links, notes, chat imports) and the text taken from them, cues and your answers.</li>
         <li>Your calls: start and end time, the events during the call (which cue was shown, questions you were not ready for, drafted answers), and the summary if you asked for one.</li>
+        <li>How often you marked a card as helpful in Pocket.</li>
+        <li>The email addresses you shared a pack with. They can see that pack&apos;s approved cards, read-only, after signing in with that email; you can stop sharing at any time.</li>
+        <li>Your calendar&apos;s private iCal address, if you link it. Link reads it to list your upcoming meetings and does not store the meetings, only packs you create from them (title, time, attendees and the invite text).</li>
         <li>Daily usage counters, so each account stays within fair limits.</li>
         <li>Personal connector tokens, stored only as a one-way hash.</li>
       </ul>
@@ -37,7 +40,7 @@ export default function PrivacyPage() {
         <li>Supabase: database, file storage and sign-in.</li>
         <li>Vercel: hosts the website and its server functions.</li>
         <li>xAI (Grok): writes cues, answers your questions in Ask, checks rehearsal answers, drafts live answers and writes call summaries. Under its API terms xAI does not train on this data and deletes it after 30 days.</li>
-        <li>AssemblyAI: turns call audio into text in real time. Audio is streamed directly from your computer.</li>
+        <li>AssemblyAI: turns call audio into text in real time. Audio is streamed directly from your computer, from the desktop app or from the Pocket window when you choose &ldquo;Call tab&rdquo;. It is not stored by Link.</li>
         <li>ChatGPT and Claude share pages: Link reads a shared chat directly from its public page, the same way your browser does. No OpenAI or Anthropic account or API is used.</li>
         <li>Firecrawl: fetches web pages that cannot be read directly, when enabled.</li>
         <li>Your browser&apos;s speech recognition: when you press Listen in the Pocket window, your browser turns speech into text. In Chrome this is done by Google. Link receives only the text, keeps it in the window and never stores it.</li>
@@ -51,6 +54,7 @@ export default function PrivacyPage() {
         <li>Delete any source, cue, pack or call at any time.</li>
         <li>Delete your account from Settings. This permanently removes your packs, files, calls and account.</li>
         <li>Turn off call summaries in the desktop app, so no transcript ever leaves your computer.</li>
+        <li>Unlink your calendar in Settings. Resetting the secret address in Google Calendar also cuts off access.</li>
       </ul>
 
       <h2>Recording and consent</h2>

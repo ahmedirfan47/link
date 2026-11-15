@@ -5,7 +5,7 @@ import { expect, test, type Page } from "@playwright/test";
  * The main signed-in flows, in order, against a real test account:
  * create a pack, add sources (a note and a chat export), view the chat,
  * open Ask, connect an app through OAuth and call the MCP endpoint with it,
- * disconnect it, and delete the pack.
+ * disconnect it, Pocket, sharing, calendar settings, and delete the pack.
  *
  * Needs E2E_EMAIL and E2E_PASSWORD. Set E2E_ASK=1 to also send one question
  * to Grok (uses one Ask from the daily cap), and E2E_SHARE_URL to a public
@@ -241,6 +241,54 @@ test("the Pocket window opens for the pack and lists it", async () => {
 
   await page.goto("/pocket");
   await expect(page.getByRole("link", { name: new RegExp(packTitle) })).toBeVisible();
+});
+
+test("Pocket offers Ask Grok and the call tab when nothing matches", async () => {
+  const packId = packUrl.split("/").pop()!;
+  await page.goto(`/pocket/${packId}`);
+  await expect(page.getByRole("button", { name: "Call tab" })).toBeVisible();
+  await page.getByLabel("Search cues").fill("What is your churn in the enterprise segment?");
+  await expect(page.getByText("No card covers this.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ask Grok" })).toBeVisible();
+  if (process.env.E2E_ASK === "1") {
+    await page.getByRole("button", { name: "Ask Grok" }).click();
+    await expect(page.getByText(/^Grok · /)).toBeVisible({ timeout: 60_000 });
+  }
+});
+
+test("share the pack read-only, then stop sharing", async () => {
+  const teammate = `e2e-teammate-${Date.now()}@example.com`;
+  await page.goto(packUrl);
+  await page.getByLabel("Teammate email").fill(teammate);
+  await page.getByRole("button", { name: "Share read-only" }).click();
+  await expect(page.getByText(`Shared with ${teammate}.`, { exact: false })).toBeVisible();
+  const row = page.getByRole("listitem").filter({ hasText: teammate });
+  await expect(row).toBeVisible();
+
+  await page.getByLabel("Teammate email").fill(teammate);
+  await page.getByRole("button", { name: "Share read-only" }).click();
+  await expect(page.getByText("Already shared with that email.")).toBeVisible();
+
+  await row.hover();
+  await row.getByRole("button", { name: "Remove" }).click();
+  await expect(page.getByRole("listitem").filter({ hasText: teammate })).toHaveCount(0);
+});
+
+test("an unshared pack id is not found", async () => {
+  const response = await page.goto("/shared/00000000-0000-4000-8000-000000000000");
+  expect(response?.status()).toBe(404);
+});
+
+test("calendar settings refuse unsafe addresses", async () => {
+  await page.goto("/settings");
+  const field = page.getByLabel(/Secret iCal address|Replace with a new address/);
+  await field.fill("http://calendar.example.com/basic.ics");
+  await page.getByRole("button", { name: /Link calendar|Replace/ }).click();
+  await expect(page.getByText("The address must start with https://.")).toBeVisible();
+
+  await field.fill("https://127.0.0.1/basic.ics");
+  await page.getByRole("button", { name: /Link calendar|Replace/ }).click();
+  await expect(page.getByText("That address cannot be used.")).toBeVisible();
 });
 
 test("delete the pack", async () => {

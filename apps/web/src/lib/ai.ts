@@ -388,3 +388,81 @@ export async function* askStream(
     }
   }
 }
+
+/* ------------------------------------------------------------------ */
+/*  Pocket: an answer for a question no card covers                    */
+/* ------------------------------------------------------------------ */
+
+const PocketAnswerSchema = z.object({
+  bullets: z.array(z.string()),
+  confident: z.boolean(),
+  sources: z.array(z.string()),
+});
+export type PocketAnswer = { bullets: string[]; confident: boolean; sources: string[] };
+
+/** Sources sent with a Pocket question; small, so the answer comes back fast. */
+const MAX_POCKET_SOURCE_CHARS = 60_000;
+
+/**
+ * Three glanceable points for a question the user did not prepare for,
+ * built from the pack's sources and approved cards.
+ */
+export async function answerFromSources(
+  pack: PackRow,
+  sources: SourceText[],
+  cards: Pick<CueRow, "prompt" | "bullets">[],
+  question: string,
+): Promise<PocketAnswer> {
+  const notes = cards
+    .slice(0, 150)
+    .map((c) => `Q: ${c.prompt}\nA: ${c.bullets.join("; ")}`)
+    .join("\n\n");
+  const out = await grokJson({
+    schema: PocketAnswerSchema,
+    name: "pocket_answer",
+    system:
+      "A person is in a live conversation and was asked something they did not prepare for. Give at most 3 bullet fragments, each under 12 words, that they can glance at and say. Use only facts from their sources and prepared cards. If those do not answer it, give a short honest approach instead (for example 'Not tracked yet; offer to follow up by Friday'). confident=true only if the sources directly answer it. sources = titles of the sources you used. Return JSON only.",
+    user: `MEETING\n${packContext(pack)}\n\nPREPARED CARDS\n${notes || "(none)"}\n\nSOURCES\n${sourceBlocks(sources, MAX_POCKET_SOURCE_CHARS) || "(none)"}\n\nTHEY JUST ASKED\n${question}`,
+    model: liveModel(),
+    effort: "low",
+    maxTokens: 3_000,
+    timeoutMs: 45_000,
+  });
+  return {
+    bullets: out.bullets.map((b) => b.trim()).filter(Boolean).slice(0, 3).map((b) => b.slice(0, 140)),
+    confident: out.confident,
+    sources: out.sources.map((s) => s.trim()).filter(Boolean).slice(0, 5),
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/*  After a call: write cards for the questions you were not ready for */
+/* ------------------------------------------------------------------ */
+
+const DraftCardsSchema = z.object({ cues: z.array(ModelCueSchema) });
+
+/**
+ * Drafts one incoming question card per missed question, answered from the
+ * pack's sources. Cards come back unapproved so the user reviews them.
+ */
+export async function draftCardsForQuestions(
+  pack: PackRow,
+  sources: SourceText[],
+  questions: string[],
+): Promise<GeneratedCue[]> {
+  const out = await grokJson({
+    schema: DraftCardsSchema,
+    name: "missed_question_cards",
+    system:
+      "You write Link cue cards for questions a person was asked in a real conversation and was not ready for. One card per question, in the same order. direction=incoming, kind=question. prompt = the question, cleaned up. variants = 4-8 spoken ways someone might ask it. bullets = at most 3 fragments under 12 words, using only facts from the sources; if the sources do not answer it, give the approach (for example 'Share pilot results instead; send numbers after'). keywords = exact trigger words, may be empty. priority 1 (it was really asked). Return JSON only.",
+    user: `MEETING\n${packContext(pack)}\n\nQUESTIONS THEY ASKED\n${questions.map((q, i) => `${i + 1}. ${q}`).join("\n")}\n\nSOURCES\n${sourceBlocks(sources, MAX_POCKET_SOURCE_CHARS * 2) || "(none)"}`,
+    model: liveModel(),
+    effort: "low",
+    maxTokens: 12_000,
+    timeoutMs: 120_000,
+  });
+  return out.cues
+    .map((c) => sanitizeGeneratedCue(c))
+    .filter((c): c is GeneratedCue => c !== null)
+    .map((c, i) => ({ ...c, direction: "incoming" as const, kind: "question" as const, prompt: c.prompt || questions[i] || c.prompt }));
+}

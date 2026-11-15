@@ -31,8 +31,8 @@ export function PocketButton({ packId }: { packId: string }) {
         const frame = win.document.createElement("iframe");
         frame.src = url;
         frame.title = "Link Pocket";
-        // The pocket listens through the microphone when the user asks it to.
-        frame.allow = "microphone";
+        // Pocket listens to the microphone or a shared call tab when the user asks it to.
+        frame.allow = "microphone; display-capture";
         win.document.body.append(frame);
         return;
       } catch {

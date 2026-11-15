@@ -63,3 +63,12 @@ test("respects the limit and orders by score", () => {
   assert.equal(hits.length, 2);
   assert.ok(hits[0]!.score >= hits[1]!.score);
 });
+
+test("cards marked helpful win near-ties but never match on usefulness alone", () => {
+  const twins = [
+    { id: "a", prompt: "What is your burn rate?", variants: [], keywords: [], useful: 0 },
+    { id: "b", prompt: "What is your burn rate?", variants: [], keywords: [], useful: 5 },
+  ];
+  assert.equal(searchCues("what's the burn rate", twins)[0]?.cue.id, "b");
+  assert.deepEqual(searchCues("tell me about hiring", twins), []);
+});

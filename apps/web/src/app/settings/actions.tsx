@@ -112,3 +112,39 @@ export async function deleteAccount(_prev: ActionState, formData: FormData): Pro
   await supabase.auth.signOut();
   redirect("/?deleted=1");
 }
+
+/* ------------------------------------------------------------------ */
+/*  Calendar                                                           */
+/* ------------------------------------------------------------------ */
+
+export async function saveCalendarFeed(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const { CalendarFeedError, checkFeed, normalizeFeedUrl } = await import("@/lib/calendar-feed");
+  try {
+    const url = normalizeFeedUrl(String(formData.get("icsUrl") ?? "")).toString();
+    const count = await checkFeed(url);
+    const { supabase, userId } = await requireUser();
+    const { error } = await supabase
+      .from("calendar_feeds")
+      .upsert({ user_id: userId, ics_url: url, updated_at: new Date().toISOString() });
+    if (error) return { error: error.message };
+    revalidatePath("/settings");
+    revalidatePath("/packs");
+    return {
+      message:
+        count === 0
+          ? "Calendar linked. No meetings in the next two weeks."
+          : `Calendar linked. ${count} meeting${count === 1 ? "" : "s"} in the next two weeks, listed on Packs.`,
+    };
+  } catch (err) {
+    if (err instanceof CalendarFeedError) return { error: err.message };
+    console.error(err);
+    return { error: "Could not link the calendar." };
+  }
+}
+
+export async function removeCalendarFeed(): Promise<void> {
+  const { supabase, userId } = await requireUser();
+  await supabase.from("calendar_feeds").delete().eq("user_id", userId);
+  revalidatePath("/settings");
+  revalidatePath("/packs");
+}

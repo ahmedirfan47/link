@@ -7,7 +7,9 @@ import { DESKTOP_SCHEME, installerUrl } from "@/lib/releases";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/supabase/server";
 import { USAGE_CAPS, capFor, todaysUsage, type UsageKind } from "@/lib/usage";
+import { maskFeedUrl } from "@/lib/calendar-feed";
 import {
+  CalendarForm,
   ConnectedApps,
   ConnectorPanel,
   CopyField,
@@ -57,7 +59,7 @@ export default async function SettingsPage({
   const { data: claims } = await supabase.auth.getClaims();
   const email = String(claims?.claims?.email ?? "");
 
-  const [{ data: tokenData }, usage, apps, origin] = await Promise.all([
+  const [{ data: tokenData }, usage, apps, origin, { data: feed }] = await Promise.all([
     supabase
       .from("api_tokens")
       .select("id, name, token_hint, created_at, last_used_at")
@@ -66,6 +68,7 @@ export default async function SettingsPage({
     todaysUsage(userId).catch(() => ({}) as Record<string, number>),
     connectedApps(userId).catch(() => [] as ConnectedApp[]),
     currentOrigin(),
+    supabase.from("calendar_feeds").select("ics_url").maybeSingle(),
   ]);
   const tokens = (tokenData ?? []) as TokenRow[];
   const used = (Object.keys(USAGE_CAPS) as UsageKind[]).filter((k) => (usage[k] ?? 0) > 0);
@@ -77,6 +80,14 @@ export default async function SettingsPage({
       <div className="space-y-14">
         <Section title="Password">
           <PasswordForm highlight={reset === "1"} />
+        </Section>
+
+        <Section
+          className="scroll-mt-20"
+          title={<span id="calendar">Calendar</span>}
+          description="Link your calendar to see upcoming meetings on Packs and turn each one into a pack with its title and attendees."
+        >
+          <CalendarForm linked={feed?.ics_url ? maskFeedUrl(feed.ics_url as string) : null} />
         </Section>
 
         <Section

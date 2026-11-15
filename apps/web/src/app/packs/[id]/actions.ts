@@ -411,3 +411,42 @@ export async function discardChatExport(packId: string, storagePath: string): Pr
   if (!storagePath.startsWith(`${userId}/${packId}/import-`)) return;
   await supabase.storage.from("sources").remove([storagePath]);
 }
+
+/* ------------------------------------------------------------------ */
+/*  Sharing (read-only, by email)                                      */
+/* ------------------------------------------------------------------ */
+
+const MAX_SHARES_PER_PACK = 25;
+
+export async function sharePack(packId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const email = String(formData.get("email") ?? "").trim().toLowerCase();
+    if (!z.email().safeParse(email).success) return { error: "Enter a valid email address." };
+    const { supabase } = await loadPack(packId);
+    const { data: claims } = await supabase.auth.getClaims();
+    if (String(claims?.claims?.email ?? "").toLowerCase() === email) return { error: "That is your own email." };
+
+    const { count } = await supabase
+      .from("pack_shares")
+      .select("id", { count: "exact", head: true })
+      .eq("pack_id", packId);
+    if ((count ?? 0) >= MAX_SHARES_PER_PACK) return { error: `A pack can be shared with up to ${MAX_SHARES_PER_PACK} people.` };
+
+    const { error } = await supabase.from("pack_shares").insert({ pack_id: packId, email });
+    if (error) {
+      if (error.code === "23505") return { error: "Already shared with that email." };
+      return { error: error.message };
+    }
+    refresh(packId);
+    return { message: `Shared with ${email}. They see it after signing in to Link with that email.` };
+  } catch (err) {
+    return { error: errorMessage(err) };
+  }
+}
+
+export async function unsharePack(packId: string, shareId: string): Promise<void> {
+  if (!Uuid.safeParse(shareId).success) return;
+  const { supabase } = await loadPack(packId);
+  await supabase.from("pack_shares").delete().eq("id", shareId).eq("pack_id", packId);
+  refresh(packId);
+}
