@@ -141,7 +141,8 @@ export interface LinkBridge {
     getUser(): Promise<UserInfo | null>;
     signIn(email: string, password: string): Promise<Result<UserInfo>>;
     /** Opens the website to sign in; the result arrives through control.onAuth. */
-    signInWithBrowser(): Promise<Result<null>>;
+    /** Opens the website to sign in; with "google", straight to Google's sign-in. */
+    signInWithBrowser(provider?: "google"): Promise<Result<null>>;
     signOut(): Promise<void>;
   };
   settings: {

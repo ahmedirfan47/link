@@ -14,6 +14,7 @@ import {
   readShareLink,
 } from "@/lib/extract";
 import { DESKTOP_SCHEME } from "@/lib/releases";
+import { newInvite } from "@/lib/invites";
 import { requireUser } from "@/lib/supabase/server";
 import type { ActionState, PackRow } from "@/lib/rows";
 import { consume } from "@/lib/usage";
@@ -413,11 +414,15 @@ export async function discardChatExport(packId: string, storagePath: string): Pr
 }
 
 /* ------------------------------------------------------------------ */
-/*  Sharing (read-only, by email)                                      */
+/*  Sharing (read-only, by invite link)                                */
 /* ------------------------------------------------------------------ */
 
 const MAX_SHARES_PER_PACK = 25;
 
+/**
+ * Creates a read-only share and returns its invite link. The email is a label
+ * for the owner; access starts only when someone accepts the link signed in.
+ */
 export async function sharePack(packId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -432,13 +437,37 @@ export async function sharePack(packId: string, _prev: ActionState, formData: Fo
       .eq("pack_id", packId);
     if ((count ?? 0) >= MAX_SHARES_PER_PACK) return { error: `A pack can be shared with up to ${MAX_SHARES_PER_PACK} people.` };
 
-    const { error } = await supabase.from("pack_shares").insert({ pack_id: packId, email });
+    const invite = await newInvite();
+    const { error } = await supabase.from("pack_shares").insert({ pack_id: packId, email, token_hash: invite.hash });
     if (error) {
       if (error.code === "23505") return { error: "Already shared with that email." };
       return { error: error.message };
     }
     refresh(packId);
-    return { message: `Shared with ${email}. They see it after signing in to Link with that email.` };
+    return {
+      message: `Invite for ${email} created. Send them this link; it works once, after they sign in to Link.`,
+      inviteUrl: invite.url,
+    };
+  } catch (err) {
+    return { error: errorMessage(err) };
+  }
+}
+
+/** A fresh invite link for a share nobody has accepted yet (the old link stops working). */
+export async function newShareLink(packId: string, shareId: string): Promise<{ url?: string; error?: string }> {
+  try {
+    if (!Uuid.safeParse(shareId).success) return { error: "Invalid share." };
+    const { supabase } = await loadPack(packId);
+    const invite = await newInvite();
+    const { data, error } = await supabase
+      .from("pack_shares")
+      .update({ token_hash: invite.hash })
+      .eq("id", shareId)
+      .eq("pack_id", packId)
+      .is("accepted_by", null)
+      .select("id");
+    if (error || !data?.length) return { error: "This invite was already accepted." };
+    return { url: invite.url };
   } catch (err) {
     return { error: errorMessage(err) };
   }

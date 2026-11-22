@@ -63,7 +63,7 @@ export default async function PackPage({ params }: { params: Promise<{ id: strin
       .eq("pack_id", id)
       .eq("status", "open")
       .order("created_at", { ascending: true }),
-    supabase.from("pack_shares").select("id, email").eq("pack_id", id).order("created_at", { ascending: true }),
+    supabase.from("pack_shares").select("id, email, accepted_at").eq("pack_id", id).order("created_at", { ascending: true }),
     supabase.from("teams").select("id, name").order("name", { ascending: true }),
   ]);
   const teams = (teamsRes.data ?? []) as TeamOption[];

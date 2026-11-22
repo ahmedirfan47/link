@@ -65,3 +65,39 @@ test("Pocket and extension APIs answer 401 in JSON when signed out", async ({ re
   });
   expect(card.status()).toBe(401);
 });
+
+test("an invite link asks signed-out visitors to sign in first", async ({ page }) => {
+  await page.goto("/invite/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+  await expect(page).toHaveURL(/\/login\?next=/);
+});
+
+test("Continue with Google sends the visitor to Google through Supabase", async ({ page }) => {
+  let authorizeUrl = "";
+  await page.route("**/auth/v1/authorize**", (route) => {
+    authorizeUrl = route.request().url();
+    return route.fulfill({ status: 200, contentType: "text/html", body: "<p>Google</p>" });
+  });
+  await page.goto("/login?next=%2Fpacks%2Fnew");
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+  await expect(page.getByText("Google", { exact: true })).toBeVisible();
+  const url = new URL(authorizeUrl);
+  expect(url.searchParams.get("provider")).toBe("google");
+  expect(url.searchParams.get("redirect_to")).toMatch(/\/auth\/callback\?next=%2Fpacks%2Fnew$/);
+});
+
+test("the desktop app's Google button starts Google sign-in straight away", async ({ page }) => {
+  let authorizeUrl = "";
+  await page.route("**/auth/v1/authorize**", (route) => {
+    authorizeUrl = route.request().url();
+    return route.fulfill({ status: 200, contentType: "text/html", body: "<p>Google</p>" });
+  });
+  await page.goto(`/login?provider=google&next=${encodeURIComponent("/desktop/connect?challenge=abc")}`);
+  await expect(page.getByText("Google", { exact: true })).toBeVisible();
+  expect(new URL(authorizeUrl).searchParams.get("redirect_to")).toContain(encodeURIComponent("/desktop/connect?challenge=abc"));
+});
+
+test("a cancelled Google sign-in comes back with a clear message", async ({ page }) => {
+  await page.goto("/auth/callback?error=access_denied&error_description=denied");
+  await expect(page).toHaveURL(/\/login\?error=/);
+  await expect(page.getByRole("alert")).toHaveText("Google sign-in was cancelled.");
+});

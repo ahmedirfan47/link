@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { StateMessage, SubmitButton } from "@/components/form-status";
+import { InviteLinkBox } from "@/components/invite-link";
 import type { ActionState } from "@/lib/rows";
 import { answerTeamMisses, createTeam, inviteMember } from "./actions";
 
@@ -25,20 +26,22 @@ export function InviteForm({ teamId }: { teamId: string }) {
   const [state, action] = useActionState<ActionState, FormData>(inviteMember.bind(null, teamId), {});
   return (
     <form action={action} className="space-y-2">
-      <label className="field-label" htmlFor="invite-emails">
-        Add members
+      <label className="field-label" htmlFor="invite-email">
+        Add a member
       </label>
       <input
-        id="invite-emails"
-        name="emails"
+        id="invite-email"
+        name="email"
+        type="email"
         required
-        placeholder="sara@company.com, omar@company.com"
+        placeholder="sara@company.com"
         className="field"
         autoComplete="off"
       />
       <StateMessage state={state} />
-      <SubmitButton className="btn-line" pendingText="Adding…">
-        Add
+      {state.inviteUrl && <InviteLinkBox url={state.inviteUrl} />}
+      <SubmitButton className="btn-line" pendingText="Creating…">
+        Create invite link
       </SubmitButton>
     </form>
   );

@@ -60,6 +60,28 @@ export async function signUp(_prev: AuthState, formData: FormData): Promise<Auth
   return { message: "Check your email and open the confirmation link in this browser." };
 }
 
+/**
+ * Sign in or sign up with Google. Google sends the user back to
+ * /auth/callback, which creates the session and continues to ?next=.
+ * A first Google sign-in creates the account.
+ */
+export async function signInWithGoogle(formData: FormData): Promise<void> {
+  const next = safeNext(formData.get("next"));
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${await origin()}/auth/callback?next=${encodeURIComponent(next)}`,
+      queryParams: { prompt: "select_account" },
+    },
+  });
+  if (error || !data.url) {
+    const message = encodeURIComponent("Google sign-in is not available right now. Use your email instead.");
+    redirect(`/login?error=${message}&next=${encodeURIComponent(next)}`);
+  }
+  redirect(data.url);
+}
+
 /** Sends a password reset link. Always answers the same way so it cannot reveal who has an account. */
 export async function requestPasswordReset(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const email = String(formData.get("email") ?? "").trim();

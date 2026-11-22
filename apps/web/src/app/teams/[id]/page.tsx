@@ -9,7 +9,8 @@ import { loadPlaybook } from "@/lib/playbook";
 import type { MeetingType } from "@link/core";
 import { MEETING_TYPE_LABELS } from "@/lib/rows";
 import { requireUser } from "@/lib/supabase/server";
-import { deleteTeam, leaveTeam, removeMember } from "../actions";
+import { NewInviteLinkButton } from "@/components/invite-link";
+import { deleteTeam, leaveTeam, newMemberLink, removeMember } from "../actions";
 import { AnswerMissesButton, InviteForm } from "../forms";
 
 export const metadata: Metadata = { title: "Team" };
@@ -25,7 +26,7 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
   if (!team) notFound();
   const isOwner = team.owner_id === userId;
   const [{ data: memberRows }, playbook] = await Promise.all([
-    supabase.from("team_members").select("id, email, role").eq("team_id", id).order("created_at", { ascending: true }),
+    supabase.from("team_members").select("id, email, role, accepted_at").eq("team_id", id).order("created_at", { ascending: true }),
     loadPlaybook(id),
   ]);
   const members = memberRows ?? [];
@@ -166,7 +167,15 @@ export default async function TeamPage({ params }: { params: Promise<{ id: strin
             <ul className="mb-4 space-y-0.5">
               {members.map((m) => (
                 <li key={m.id} className="group -mx-2 flex items-center gap-2 rounded-md px-2 py-1 hover:bg-canvas">
-                  <span className="min-w-0 flex-1 truncate text-sm">{m.email}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm">
+                    {m.email}
+                    {m.role !== "owner" && (
+                      <span className="ml-1.5 text-xs text-muted">{m.accepted_at ? "joined" : "invited"}</span>
+                    )}
+                  </span>
+                  {isOwner && m.role !== "owner" && !m.accepted_at && (
+                    <NewInviteLinkButton create={newMemberLink.bind(null, id, m.id as string)} />
+                  )}
                   {m.role === "owner" ? (
                     <span className="text-xs text-muted">owner</span>
                   ) : (

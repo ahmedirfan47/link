@@ -11,7 +11,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const { error, next, mode } = await searchParams;
+  const { error, next, mode, provider } = await searchParams;
 
   return (
     <main className="grid min-h-screen lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
@@ -31,6 +31,7 @@ export default async function LoginPage({
               initialError={typeof error === "string" ? error : undefined}
               next={safeNext(next)}
               initialMode={mode === "signup" ? "signup" : "signin"}
+              autoGoogle={provider === "google"}
             />
           </div>
         </div>

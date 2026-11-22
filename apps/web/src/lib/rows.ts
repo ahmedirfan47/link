@@ -156,6 +156,8 @@ export const SOURCE_KIND_LABELS: Record<SourceKind, string> = {
 export interface ActionState {
   error?: string;
   message?: string;
+  /** An invite link to show once, for the user to send to a teammate. */
+  inviteUrl?: string;
   /** link-app:// link that lets the desktop app finish what the server could not. */
   desktopUrl?: string;
 }

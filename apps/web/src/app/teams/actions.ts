@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { AiError } from "@/lib/ai";
+import { newInvite } from "@/lib/invites";
 import { writeAnswersForQuestions } from "@/lib/missed";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireUser } from "@/lib/supabase/server";
@@ -25,39 +26,55 @@ export async function createTeam(_prev: ActionState, formData: FormData): Promis
   const email = await ownEmail(supabase);
   const { data: team, error } = await supabase.from("teams").insert({ name, owner_id: userId }).select("id").single();
   if (error || !team) return { error: error?.message ?? "Could not create the team." };
-  await supabase.from("team_members").insert({ team_id: team.id, email, role: "owner" });
+  await supabase
+    .from("team_members")
+    .insert({ team_id: team.id, email, role: "owner", accepted_by: userId, accepted_at: new Date().toISOString() });
   revalidatePath("/teams");
   redirect(`/teams/${team.id}`);
 }
 
+/** Adds a seat for a teammate and returns its invite link; they join by accepting it signed in. */
 export async function inviteMember(teamId: string, _prev: ActionState, formData: FormData): Promise<ActionState> {
   if (!Uuid.safeParse(teamId).success) return { error: "Invalid team." };
-  const emails = String(formData.get("emails") ?? "")
-    .split(/[\s,;]+/)
-    .map((e) => e.trim().toLowerCase())
-    .filter(Boolean);
-  if (emails.length === 0) return { error: "Enter at least one email address." };
-  const bad = emails.find((e) => !z.email().safeParse(e).success);
-  if (bad) return { error: `${bad} is not a valid email address.` };
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!z.email().safeParse(email).success) return { error: "Enter a valid email address." };
 
   const { supabase } = await requireUser();
   const { count } = await supabase
     .from("team_members")
     .select("id", { count: "exact", head: true })
     .eq("team_id", teamId);
-  if ((count ?? 0) + emails.length > MAX_MEMBERS) return { error: `A team can have up to ${MAX_MEMBERS} members.` };
+  if ((count ?? 0) >= MAX_MEMBERS) return { error: `A team can have up to ${MAX_MEMBERS} members.` };
 
+  const invite = await newInvite();
   const { error } = await supabase
     .from("team_members")
-    .upsert(
-      emails.map((email) => ({ team_id: teamId, email, role: "member" })),
-      { onConflict: "team_id,email", ignoreDuplicates: true },
-    );
-  if (error) return { error: "Only the team owner can add members." };
+    .insert({ team_id: teamId, email, role: "member", token_hash: invite.hash });
+  if (error) {
+    if (error.code === "23505") return { error: "That email is already on the team." };
+    return { error: "Only the team owner can add members." };
+  }
   revalidatePath(`/teams/${teamId}`);
   return {
-    message: `Added ${emails.length === 1 ? emails[0] : `${emails.length} people`}. They see the team after signing in to Link with that email.`,
+    message: `Invite for ${email} created. Send them this link; it works once, after they sign in to Link.`,
+    inviteUrl: invite.url,
   };
+}
+
+/** A fresh invite link for a seat nobody has accepted yet (the old link stops working). */
+export async function newMemberLink(teamId: string, memberId: string): Promise<{ url?: string; error?: string }> {
+  if (!Uuid.safeParse(teamId).success || !Uuid.safeParse(memberId).success) return { error: "Invalid invite." };
+  const { supabase } = await requireUser();
+  const invite = await newInvite();
+  const { data, error } = await supabase
+    .from("team_members")
+    .update({ token_hash: invite.hash })
+    .eq("id", memberId)
+    .eq("team_id", teamId)
+    .is("accepted_by", null)
+    .select("id");
+  if (error || !data?.length) return { error: "Already joined" };
+  return { url: invite.url };
 }
 
 export async function removeMember(teamId: string, memberId: string): Promise<void> {
@@ -70,10 +87,14 @@ export async function removeMember(teamId: string, memberId: string): Promise<vo
 /** A member leaves a team they were added to. */
 export async function leaveTeam(teamId: string): Promise<void> {
   if (!Uuid.safeParse(teamId).success) return;
-  const { supabase } = await requireUser();
-  const email = await ownEmail(supabase);
-  // Members cannot delete rows through RLS; the server removes only the caller's own row.
-  await createAdminClient().from("team_members").delete().eq("team_id", teamId).eq("email", email).neq("role", "owner");
+  // Members cannot delete rows through RLS; the server removes only the caller's own seat.
+  const { userId } = await requireUser();
+  await createAdminClient()
+    .from("team_members")
+    .delete()
+    .eq("team_id", teamId)
+    .eq("accepted_by", userId)
+    .neq("role", "owner");
   revalidatePath("/teams");
   redirect("/teams");
 }

@@ -257,22 +257,35 @@ test("Pocket offers Ask Grok and the call tab when nothing matches", async () =>
   }
 });
 
-test("share the pack read-only, then stop sharing", async () => {
+test("share the pack by invite link, then stop sharing", async () => {
   const teammate = `e2e-teammate-${Date.now()}@example.com`;
   await page.goto(packUrl);
   await page.getByLabel("Teammate email").fill(teammate);
-  await page.getByRole("button", { name: "Share read-only" }).click();
-  await expect(page.getByText(`Shared with ${teammate}.`, { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Create invite link" }).click();
+  await expect(page.getByText(`Invite for ${teammate} created.`, { exact: false })).toBeVisible();
+  const link = await page.getByLabel("Invite link").inputValue();
+  expect(link).toMatch(/\/invite\/[A-Za-z0-9_-]{32}$/);
   const row = page.getByRole("listitem").filter({ hasText: teammate });
-  await expect(row).toBeVisible();
+  await expect(row).toContainText("invited");
 
   await page.getByLabel("Teammate email").fill(teammate);
-  await page.getByRole("button", { name: "Share read-only" }).click();
+  await page.getByRole("button", { name: "Create invite link" }).click();
   await expect(page.getByText("Already shared with that email.")).toBeVisible();
 
+  // Opening your own invite does not give it away.
+  await page.goto(new URL(link).pathname);
+  await expect(page.getByRole("heading", { name: packTitle })).toBeVisible();
+  await page.getByRole("button", { name: "Accept invite" }).click();
+  await expect(page.getByText("This is your own invite.", { exact: false })).toBeVisible();
+
+  await page.goto(packUrl);
   await row.hover();
   await row.getByRole("button", { name: "Remove" }).click();
   await expect(page.getByRole("listitem").filter({ hasText: teammate })).toHaveCount(0);
+
+  // A removed invite no longer opens.
+  await page.goto(new URL(link).pathname);
+  await expect(page.getByRole("heading", { name: "Invite not found" })).toBeVisible();
 });
 
 test("an unshared pack id is not found", async () => {
@@ -305,9 +318,10 @@ test("a team: create it, add a member, share the pack, see the playbook, delete 
   await expect(page.getByRole("heading", { name: teamName })).toBeVisible();
   await expect(page.getByText("Answers that work")).toBeVisible();
 
-  await page.getByLabel("Add members").fill("e2e-member@example.com");
-  await page.getByRole("button", { name: "Add", exact: true }).click();
-  await expect(page.getByText("e2e-member@example.com", { exact: true })).toBeVisible();
+  await page.getByLabel("Add a member").fill("e2e-member@example.com");
+  await page.getByRole("button", { name: "Create invite link" }).click();
+  await expect(page.getByLabel("Invite link")).toHaveValue(/\/invite\//);
+  await expect(page.getByRole("listitem").filter({ hasText: "e2e-member@example.com" })).toContainText("invited");
   const teamUrl = page.url();
 
   await page.goto(packUrl);

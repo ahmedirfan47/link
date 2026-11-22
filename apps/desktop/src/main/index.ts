@@ -268,8 +268,8 @@ function registerMediaHandlers(): void {
 function registerIpc(): void {
   ipcMain.handle("auth:get-user", () => auth.getUser());
   ipcMain.handle("auth:sign-in", (_e, email: string, password: string) => auth.signIn(email, password));
-  ipcMain.handle("auth:sign-in-browser", async () => {
-    await shell.openExternal(auth.browserSignInUrl(getSettings().serverUrl));
+  ipcMain.handle("auth:sign-in-browser", async (_e, provider?: unknown) => {
+    await shell.openExternal(auth.browserSignInUrl(getSettings().serverUrl, provider === "google" ? "google" : undefined));
     return { ok: true, data: null };
   });
   ipcMain.handle("auth:sign-out", () => auth.signOut());

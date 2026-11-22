@@ -7,7 +7,6 @@ export async function GET() {
   const supabase = await createClient();
   const { data: claims } = await supabase.auth.getClaims();
   const userId = claims?.claims?.sub;
-  const email = String(claims?.claims?.email ?? "").toLowerCase();
   if (!userId) return json({ error: "Sign in to Link first." }, 401);
 
   const [{ data: own }, { data: shares }, { data: teams }] = await Promise.all([
@@ -17,7 +16,7 @@ export async function GET() {
       .eq("user_id", userId)
       .neq("status", "archived")
       .order("updated_at", { ascending: false }),
-    supabase.from("pack_shares").select("pack_id").eq("email", email),
+    supabase.from("pack_shares").select("pack_id").eq("accepted_by", userId),
     supabase.from("teams").select("id, name"),
   ]);
 

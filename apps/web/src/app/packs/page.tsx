@@ -30,8 +30,8 @@ interface SharedPack {
 }
 
 /**
- * Packs shared with this user: by email (pack_shares rows, visible through RLS
- * for their own email only) and through teams they belong to. Titles come
+ * Packs shared with this user: invites they accepted (pack_shares rows,
+ * visible through RLS once accepted) and their teams' packs. Titles come
  * through the admin client after membership is known.
  */
 async function sharedWithMe(
@@ -40,7 +40,7 @@ async function sharedWithMe(
   userId: string,
 ) {
   const [{ data: shares }, { data: teams }] = await Promise.all([
-    email ? supabase.from("pack_shares").select("pack_id").eq("email", email) : Promise.resolve({ data: [] }),
+    supabase.from("pack_shares").select("pack_id").eq("accepted_by", userId),
     supabase.from("teams").select("id, name"),
   ]);
   const ids = [...new Set((shares ?? []).map((s) => s.pack_id as string))];

@@ -27,7 +27,7 @@ const bridge: LinkBridge = {
   auth: {
     getUser: () => ipcRenderer.invoke("auth:get-user"),
     signIn: (email, password) => ipcRenderer.invoke("auth:sign-in", email, password),
-    signInWithBrowser: () => ipcRenderer.invoke("auth:sign-in-browser"),
+    signInWithBrowser: (provider?: "google") => ipcRenderer.invoke("auth:sign-in-browser", provider),
     signOut: () => ipcRenderer.invoke("auth:sign-out"),
   },
   settings: {

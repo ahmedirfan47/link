@@ -3,8 +3,9 @@ import { safeNext } from "@/lib/safe-next";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Email links (sign-up confirmation, password reset) land here with a one-time
- * ?code=. It is exchanged for a session cookie, then the user goes to ?next=.
+ * Email links (sign-up confirmation, password reset) and Google sign-in land
+ * here with a one-time ?code=. It is exchanged for a session cookie, then the
+ * user goes to ?next=.
  */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
@@ -17,8 +18,14 @@ export async function GET(request: NextRequest) {
     if (!error) return NextResponse.redirect(`${origin}${next}`);
   }
 
+  // Google reports a cancelled or refused sign-in as ?error=...
+  const providerError = searchParams.get("error");
   const message = encodeURIComponent(
-    "That link is invalid or expired. Open it in the same browser you requested it from, or try again.",
+    providerError === "access_denied"
+      ? "Google sign-in was cancelled."
+      : providerError
+        ? "Google sign-in did not work. Try again, or use your email instead."
+        : "That link is invalid or expired. Open it in the same browser you requested it from, or try again.",
   );
-  return NextResponse.redirect(`${origin}/login?error=${message}`);
+  return NextResponse.redirect(`${origin}/login?error=${message}&next=${encodeURIComponent(next)}`);
 }

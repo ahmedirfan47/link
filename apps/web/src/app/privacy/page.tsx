@@ -24,7 +24,7 @@ export default function PrivacyPage() {
         <li>Your calls: start and end time, the events during the call (which cue was shown, questions you were not ready for, drafted answers), and the summary if you asked for one.</li>
         <li>Cards you marked as helpful in Pocket or the Chrome extension, and questions heard on a call that no card covered.</li>
         <li>Teams you create or join: the team name and members&apos; email addresses. Members see the team&apos;s packs read-only, and the team playbook shows each member&apos;s helpful cards, missed questions and number of calls.</li>
-        <li>The email addresses you shared a pack with. They can see that pack&apos;s approved cards, read-only, after signing in with that email; you can stop sharing at any time.</li>
+        <li>The email addresses you invited to a pack or team, and which account accepted each invite link. Only the account that accepts an invite sees that pack&apos;s approved cards, read-only; you can remove anyone at any time.</li>
         <li>Your calendar&apos;s private iCal address, if you link it. Link reads it to list your upcoming meetings and does not store the meetings, only packs you create from them (title, time, attendees and the invite text).</li>
         <li>Daily usage counters, so each account stays within fair limits.</li>
         <li>Personal connector tokens, stored only as a one-way hash.</li>

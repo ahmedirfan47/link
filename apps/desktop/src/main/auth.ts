@@ -124,11 +124,14 @@ let pendingVerifier: { value: string; createdAt: number } | null = null;
  * Step one: make a secret, open the website with its hash (PKCE). The website
  * sends the user back to link-app://auth?code=... once they confirm.
  */
-export function browserSignInUrl(serverUrl: string): string {
+export function browserSignInUrl(serverUrl: string, provider?: "google"): string {
   const verifier = randomBytes(32).toString("base64url");
   pendingVerifier = { value: verifier, createdAt: Date.now() };
   const challenge = createHash("sha256").update(verifier).digest("base64url");
-  return `${serverUrl}/desktop/connect?challenge=${challenge}`;
+  const connect = `/desktop/connect?challenge=${challenge}`;
+  // With Google, the website goes straight to Google's sign-in, then on to the connect page.
+  if (provider === "google") return `${serverUrl}/login?provider=google&next=${encodeURIComponent(connect)}`;
+  return `${serverUrl}${connect}`;
 }
 
 /** Step two: trade the code plus the secret for a session. */
